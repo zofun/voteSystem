@@ -5,6 +5,7 @@ from flask_jwt_extended import (
 from mongoengine import Q
 
 from vote.api_1_0 import api
+from vote.models import Competitor
 from vote.models import User
 
 
@@ -43,6 +44,30 @@ def register():
         return jsonify({'code': 200, 'msg': '注册成功'}), 200
 
 
+@api.route('/apply', methods=['POST'])
+def apply():
+    name = request.json.get('name', None)
+    nickname = request.json.get('nickname', None)
+    username = request.json.get('username', None)
+    tel = request.json.get('tel', None)
+    if not name or not username or not tel:
+        return jsonify({'code': 400, 'msg': '请求参数错误'})
+
+    # 确保电话的是唯一的
+    count = Competitor.objects(tel=tel).count()
+    if count >= 1:
+        return jsonify({'code': 400, 'msg': '电话号重复'})
+    # 生成唯一的参赛者编号
+    # 利用参赛者总是来生成一个6位的id
+    c = Competitor.objects.all().count()
+    cid = str(c + 1).zfill(6)
+    competitor = Competitor(cid=cid, nickname=nickname, tel=tel, vote_num=0)
+    # 保存到数据库
+    competitor.save()
+    return jsonify({'code': 200, 'msg': '报名成功', 'cid': cid})
+
+
 @api.route('/')
 def index():
-    return jsonify(User.objects.all())
+    u = User.objects.all().limit(1)
+    return jsonify({'u': User.objects.all(), 'c': Competitor.objects.all()})
