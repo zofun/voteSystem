@@ -3,6 +3,7 @@ from logging.handlers import RotatingFileHandler
 
 import redis
 from flask import Flask
+from flask_jwt_extended import JWTManager
 from flask_mongoengine import MongoEngine
 from config import configs
 
@@ -13,6 +14,7 @@ from config import configs
 redis_conn = None
 # mongoDB连接
 db = None
+conf=None
 
 
 def setup_logging(levle):
@@ -39,7 +41,6 @@ def get_app(config_name):
     app = Flask(__name__)
     # 加载配置文件
     app.config.from_object(configs[config_name])
-
     # 对mongoDB进行配置
     app.config['MONGODB_SETTINGS'] = {
         'db': conf.MONGODB_DB,
@@ -49,9 +50,12 @@ def get_app(config_name):
         'username': conf.MONGODB_USERNAME,
         'password': conf.MONGODB_PASSWORD
     }
-
     global db
     db = MongoEngine(app)
+
+    # 对jwt进行配置
+    app.config['JWT_SECRET_KEY'] = conf.JWT_SECRET_KEY
+    jwt = JWTManager(app)
 
     # 对redis进行配置，使用连接池
     pool = redis.ConnectionPool(host=conf.REDIS_HOST, port=conf.REDIS_PORT, decode_responses=True)

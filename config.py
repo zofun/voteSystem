@@ -23,7 +23,6 @@ class DevelopConfig(Config):
 
     # jwt相关
     JWT_SECRET_KEY = 'AAAA'
-    JWT_AUTH_SALT = '333'
 
 
 class ProductionConfig(Config):
