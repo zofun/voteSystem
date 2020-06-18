@@ -3,7 +3,9 @@ from flask_jwt_extended import (
     jwt_required, get_jwt_claims, get_jwt_identity)
 from mongoengine import DoesNotExist
 
+from vote import redis_conn
 from vote.api_1_0 import api
+from vote.constants import *
 from vote.models import Competitor
 
 
@@ -66,3 +68,21 @@ def change_competitor_info():
     current_app.logger.info(
         "admin change competitor info:" + str(get_jwt_identity()) + str(competitor))
     return jsonify({'code': 200, 'msg': '更新完成'})
+
+
+@api.route('/add_vote', methods=['POST'])
+@jwt_required
+def add_vote_to_competitor():
+    claims = get_jwt_claims()
+    # 只有拥有管理员权限的人才能够加票
+    if not 'admin'.__eq__(claims):
+        return jsonify({'code': 400, 'msg': '权限不够'})
+    cid = request.json.get('cid', None)
+    votes = request.json.get('votes', None)
+    # 首先修改redis中的信息
+    redis_conn.zincrby(REDIS_RANKING_LIST_KEY, votes, cid)
+    # 修改数据库
+    competitor = Competitor.objects().get(cid=cid)
+    competitor.vote_num += int(votes)
+    competitor.save()
+    return jsonify({'code': 200, 'msg': '加票成功'})
