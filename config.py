@@ -24,6 +24,9 @@ class DevelopConfig(Config):
     # jwt相关
     JWT_SECRET_KEY = 'AAAA'
 
+    # json
+    JSON_AS_ASCII = False  # 支持中文
+
 
 class ProductionConfig(Config):
     """生产环境配置信息"""

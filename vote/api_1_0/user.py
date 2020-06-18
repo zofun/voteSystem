@@ -3,10 +3,10 @@ from flask_jwt_extended import (
     create_access_token
 )
 from mongoengine import Q
-
 from vote.api_1_0 import api
 from vote.models import Competitor
 from vote.models import User
+from vote import redis_conn, load_data_to_redis
 
 
 @api.route('/login', methods=['POST'])
@@ -70,4 +70,11 @@ def apply():
 @api.route('/')
 def index():
     u = User.objects.all().limit(1)
-    return jsonify({'u': User.objects.all(), 'c': Competitor.objects.all()})
+    return jsonify({'u': User.objects.all(), 'c': Competitor.objects.all(),'r':redis_conn.zrange('rank_list', 0, 5)})
+
+
+@api.route('/load')
+def load():
+    current_app.logger.info("load data to redis")
+    load_data_to_redis()
+    return "load data"

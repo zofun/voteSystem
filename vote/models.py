@@ -21,16 +21,20 @@ class Competitor(db.Document):
     其中cid是参赛选手的唯一编号
     tel为电话号码，且不能重复
     state为参赛选手的状态，参赛（join）和退出（out）
-    vote记录所有为该选手投票的用户的objectId
+    vote记录所有为该选手投票的用户的username
     vote_num 记录选手所获得的所有的票数，选手得票数=用户投票+管理员加上得票数
     """
     cid = db.StringField(required=True)
+    name = db.StringField()
     nickname = db.StringField()
     tel = db.StringField()
     state = db.StringField(default='join')
     vote_num = db.IntField()
-    vote = db.ListField(db.ObjectIdField())
+    vote = db.ListField(db.StringField())
 
     def __str__(self):
         return "id:{} - nickname:{} - tel:{} - vote_num:{} - state:{}" \
-            .format(self.cid, self.nickname, self.tel, self.vote_num,self.state)
+            .format(self.cid, self.nickname, self.tel, self.vote_num, self.state)
+
+    def __repr__(self):
+        return repr(self.cid,self.tel,self.name,self.nickname,self.vote_num,self.state)
