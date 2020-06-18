@@ -26,6 +26,13 @@ def change_competitor_state():
         return jsonify({'code': 400, 'msg': '无效的cid'})
     competitor.state = new_state
     competitor.save()
+    # 更新缓存
+    if 'join'.__eq__(new_state):
+        # 如果更新为参赛状态，那么加入redis排行榜中
+        redis_conn.zadd(REDIS_RANKING_LIST_KEY, {competitor.cid: competitor.vote_num})
+    else:
+        # 否则从redis排行榜中移除
+        redis_conn.zrem(REDIS_RANKING_LIST_KEY,competitor.cid)
     # 记录日志
     current_app.logger.info(
         "competitor state change username:" + str(get_jwt_identity()) + "cid:" + cid + " new state" + new_state)
