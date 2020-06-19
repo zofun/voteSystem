@@ -47,6 +47,8 @@ def get_ranking_list():
         dict['cid'] = cid
         rank += 1
         dict['rank']=rank
+        dict['vote_num']=redis_conn.zscore(REDIS_RANKING_LIST_KEY,cid)
         data.append(dict)
     res_json['data'] = data
+    res_json['code']=0
     return json.dumps(res_json,ensure_ascii=False)
