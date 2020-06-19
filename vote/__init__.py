@@ -44,7 +44,7 @@ def load_data_to_redis():
         redis_conn.zadd(REDIS_RANKING_LIST_KEY, {item.cid: item.vote_num})
         # 存储每个参赛用户的详细信息
         json_str = json.dumps(
-            {'name': item.name, 'nickname': item.nickname, 'tel': item.tel},
+            {'name': item.name, 'nickname': item.nickname, 'tel': item.tel,'vote_num':item.vote_num},
             ensure_ascii=False)
         redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=item.cid, value=json_str)
         for u in item.vote:
