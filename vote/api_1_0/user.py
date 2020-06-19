@@ -1,9 +1,12 @@
+import json
+
 from flask import jsonify, current_app, request
 from flask_jwt_extended import (
     create_access_token
 )
 from mongoengine import Q
 
+from vote import redis_conn, load_data_to_redis, REDIS_RANKING_LIST_KEY, REDIS_COMPETITOR_HASH_KEY
 from vote.api_1_0 import api
 from vote.models import Competitor
 from vote.models import User
@@ -48,9 +51,8 @@ def register():
 def apply():
     name = request.json.get('name', None)
     nickname = request.json.get('nickname', None)
-    username = request.json.get('username', None)
     tel = request.json.get('tel', None)
-    if not name or not username or not tel:
+    if not name or not nickname or not tel:
         return jsonify({'code': 400, 'msg': '请求参数错误'})
 
     # 确保电话的是唯一的
@@ -61,13 +63,28 @@ def apply():
     # 利用参赛者总是来生成一个6位的id
     c = Competitor.objects.all().count()
     cid = str(c + 1).zfill(6)
-    competitor = Competitor(cid=cid, nickname=nickname, tel=tel, vote_num=0)
+    competitor = Competitor(cid=cid, nickname=nickname, tel=tel, name=name, vote_num=0)
     # 保存到数据库
     competitor.save()
+
+    # 将参赛者信息同步到redis
+    redis_conn.zadd(REDIS_RANKING_LIST_KEY, {competitor.cid: 0})
+    # 存储每个参赛用户的详细信息
+    json_str = json.dumps(
+        {'name': competitor.name, 'nickname': competitor.nickname, 'tel': competitor.tel, 'vote_num': 0},
+        ensure_ascii=False)
+    redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=cid, value=json_str)
     return jsonify({'code': 200, 'msg': '报名成功', 'cid': cid})
 
 
 @api.route('/')
 def index():
     u = User.objects.all().limit(1)
-    return jsonify({'u': User.objects.all(), 'c': Competitor.objects.all()})
+    return jsonify({'u': User.objects.all(), 'c': Competitor.objects.all(), 'r': redis_conn.zrange('rank_list', 0, 5)})
+
+
+@api.route('/load')
+def load():
+    current_app.logger.info("load data to redis")
+    load_data_to_redis()
+    return "load data"

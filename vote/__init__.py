@@ -1,3 +1,4 @@
+import json
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -5,16 +6,16 @@ import redis
 from flask import Flask
 from flask_jwt_extended import JWTManager
 from flask_mongoengine import MongoEngine
+
 from config import configs
-
-
+from vote.constants import *
 
 # 设置能被外界访问的对象
 # redis连接
 redis_conn = None
 # mongoDB连接
 db = None
-conf=None
+conf = None
 
 
 def setup_logging(levle):
@@ -27,6 +28,28 @@ def setup_logging(levle):
     # 创建日志记录器
     file_log_handler = RotatingFileHandler("logs/log", maxBytes=1024 * 1024 * 100)
     logging.getLogger().addHandler(file_log_handler)
+
+
+def load_data_to_redis():
+    """将参赛者信息加载到redis中
+    包括排名zset
+    记录参赛者信息的hash
+    记录给参赛者所
+    :return:
+    """
+    from vote.models import Competitor
+    competitors = Competitor.objects().all()
+    for item in competitors:
+        # 用于计算排名的zset
+        redis_conn.zadd(REDIS_RANKING_LIST_KEY, {item.cid: item.vote_num})
+        # 存储每个参赛用户的详细信息
+        json_str = json.dumps(
+            {'name': item.name, 'nickname': item.nickname, 'tel': item.tel,'vote_num':item.vote_num},
+            ensure_ascii=False)
+        redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=item.cid, value=json_str)
+        for u in item.vote:
+            # 为每个参赛者维护一个投票set，记录给它投票的用户的objectId
+            redis_conn.sadd(REDIS_VOTE_PREFIX + item.cid, u)
 
 
 def get_app(config_name):
@@ -59,6 +82,7 @@ def get_app(config_name):
 
     # 对redis进行配置，使用连接池
     pool = redis.ConnectionPool(host=conf.REDIS_HOST, port=conf.REDIS_PORT, decode_responses=True)
+    global redis_conn
     redis_conn = redis.Redis(connection_pool=pool)
 
     # 用的时候再导包，防止出现循环依赖
