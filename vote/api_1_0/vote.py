@@ -35,7 +35,8 @@ def get_ranking_list():
     limit=request.args.get('limit')
     begin = (int(page) - 1) * int(limit)
     rank_list = redis_conn.zrange(REDIS_RANKING_LIST_KEY, start=begin, end=begin + int(limit) - 1, desc=True)
-    res_json = {'count': len(rank_list)}
+    # 返回的json中应该包含参赛者总数
+    res_json = {'count': redis_conn.zcard(REDIS_RANKING_LIST_KEY)}
     data = []
     # 计算排名
     rank=begin
