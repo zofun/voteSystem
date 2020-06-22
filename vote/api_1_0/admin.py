@@ -18,7 +18,7 @@ def change_competitor_state():
     # 获取当前用户的身份
     claims = get_jwt_claims()
     # 只有为管理员身份的时候才能够修改参赛者的状态
-    if not 'admin'.__eq__(claims):
+    if 'admin'!=claims:
         return jsonify({'code': 400, 'msg': '权限不够'})
     cid = request.json.get('cid', None)
     new_state = request.json.get('state', None)
@@ -30,7 +30,7 @@ def change_competitor_state():
     competitor.state = new_state
     competitor.save()
     # 更新缓存
-    if 'join'.__eq__(new_state):
+    if 'join' == new_state:
         # 如果更新为参赛状态，那么加入redis排行榜中
         redis_conn.zadd(REDIS_RANKING_LIST_KEY, {competitor.cid: competitor.vote_num})
     else:
@@ -48,7 +48,7 @@ def change_competitor_info():
     # 获取当前用户的身份
     claims = get_jwt_claims()
     # 只有为管理员身份的时候才能够修改参赛者的信息
-    if not 'admin'.__eq__(claims):
+    if 'admin'!=claims:
         return jsonify({'code': 400, 'msg': '权限不够'})
     cid = request.json.get('cid', None)
     try:
