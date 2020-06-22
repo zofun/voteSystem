@@ -18,7 +18,7 @@ def change_competitor_state():
     # 获取当前用户的身份
     claims = get_jwt_claims()
     # 只有为管理员身份的时候才能够修改参赛者的状态
-    if 'admin'!=claims:
+    if 'admin' != claims:
         return jsonify({'code': 400, 'msg': '权限不够'})
     cid = request.json.get('cid', None)
     new_state = request.json.get('state', None)
@@ -38,7 +38,7 @@ def change_competitor_state():
         redis_conn.zrem(REDIS_RANKING_LIST_KEY, competitor.cid)
     # 记录日志
     current_app.logger.info(
-        "competitor state change username:" + str(get_jwt_identity()) + "cid:" + cid + " new state" + new_state)
+        "change competitor state:admin username:" + str(get_jwt_identity()) + "cid:" + cid + " new state" + new_state)
     return jsonify({'code': 200, 'msg': '更新成功'})
 
 
@@ -48,7 +48,7 @@ def change_competitor_info():
     # 获取当前用户的身份
     claims = get_jwt_claims()
     # 只有为管理员身份的时候才能够修改参赛者的信息
-    if 'admin'!=claims:
+    if 'admin' != claims:
         return jsonify({'code': 400, 'msg': '权限不够'})
     cid = request.json.get('cid', None)
     try:
@@ -81,8 +81,9 @@ def change_competitor_info():
         ensure_ascii=False)
     redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=competitor.cid, value=json_str)
     # 记录日志
-    # current_app.logger.info(
-    #    "admin change competitor info:" + str(get_jwt_identity()) + str(competitor))
+    current_app.logger.info(
+        "admin change competitor info: admin username:" + str(get_jwt_identity()) + "competitor username+:" + str(
+            competitor.username))
     return jsonify({'code': 200, 'msg': '更新完成'})
 
 
@@ -101,4 +102,8 @@ def add_vote_to_competitor():
     competitor = Competitor.objects().get(cid=cid)
     competitor.vote_num += int(votes)
     competitor.save()
+    # 记录日志
+    current_app.logger.info(
+        "admin add vote: admin username:" + str(get_jwt_identity()) + "competitor username+:" + str(
+            competitor.username) + " votes:" + votes)
     return jsonify({'code': 200, 'msg': '加票成功'})

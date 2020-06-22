@@ -35,7 +35,7 @@ def search():
         if index != None:
             rank = competitor_num - index
         else:
-            rank = -1 # 如果已经退赛，则排名使用-1来表示
+            rank = -1  # 如果已经退赛，则排名使用-1来表示
         data.append({'cid': item.cid, 'name': item.name
                         , 'nickname': item.nickname, 'tel': item.tel
                         , 'vote_num': item.vote_num, 'rank': rank})

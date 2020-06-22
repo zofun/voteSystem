@@ -1,7 +1,7 @@
 # coding=utf-8
 import json
 
-from flask import jsonify,request
+from flask import jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from vote import redis_conn
@@ -26,31 +26,32 @@ def vote(cid):
         competitor.vote_num += 1
         competitor.vote.append(identity)
         competitor.save()
+        # 记录日志
+        current_app.logger.info("vote:" + identity + "to" + cid)
         return jsonify({'code': 200, 'msg': '投票成功'})
     return jsonify({'code': 200, 'msg': '已经投过票了'})
 
 
 @api.route('/get_ranking_list', methods=['GET'])
 def get_ranking_list():
-    page=request.args.get('page')
-    limit=request.args.get('limit')
+    page = request.args.get('page')
+    limit = request.args.get('limit')
     begin = (int(page) - 1) * int(limit)
     rank_list = redis_conn.zrange(REDIS_RANKING_LIST_KEY, start=begin, end=begin + int(limit) - 1, desc=True)
     # 返回的json中应该包含参赛者总数
     res_json = {'count': redis_conn.zcard(REDIS_RANKING_LIST_KEY)}
     data = []
     # 计算排名
-    rank=begin
+    rank = begin
     for cid in rank_list:
-        print(cid)
         competitor_info = redis_conn.hget(REDIS_COMPETITOR_HASH_KEY, cid)
         dict = json.loads(competitor_info)
         # 将cid也补充上
         dict['cid'] = cid
         rank += 1
-        dict['rank']=rank
-        dict['vote_num']=redis_conn.zscore(REDIS_RANKING_LIST_KEY,cid)
+        dict['rank'] = rank
+        dict['vote_num'] = redis_conn.zscore(REDIS_RANKING_LIST_KEY, cid)
         data.append(dict)
     res_json['data'] = data
-    res_json['code']=0
-    return json.dumps(res_json,ensure_ascii=False)
+    res_json['code'] = 0
+    return json.dumps(res_json, ensure_ascii=False)

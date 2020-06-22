@@ -25,6 +25,8 @@ def login():
     if len(u) >= 1:
         # 生成token
         access_token = create_access_token(identity=u[0].username, user_claims=u[0].role)
+        # 记录用户登录的日志
+        current_app.logger.info("user login:" + str(u))
         return jsonify({'code': 200, 'token': access_token}), 200
     else:
         return jsonify({'code': 400, 'msg': '账户或密码错误'}), 400
@@ -44,7 +46,8 @@ def register():
         u = User(username=username, password=password)
         # 用户注册成功保存到数据库
         u.save()
-        current_app.logger.info("user register" + str(u))
+        # 记录用户注册的日志
+        current_app.logger.info("user register:" + str(u))
         return jsonify({'code': 200, 'msg': '注册成功'}), 200
 
 
@@ -75,7 +78,6 @@ def apply():
         {'name': competitor.name, 'nickname': competitor.nickname, 'tel': competitor.tel, 'vote_num': 0},
         ensure_ascii=False)
     redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=cid, value=json_str)
+    # 用户报名参赛记录日志
+    current_app.logger.info("sign up:" + str(json_str))
     return jsonify({'code': 200, 'msg': '报名成功', 'cid': cid})
-
-
-
