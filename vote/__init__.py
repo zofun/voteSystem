@@ -91,4 +91,6 @@ def get_app(config_name):
     from vote.api_1_0 import api
     # 注册到蓝图
     app.register_blueprint(api)
+    # 启动后就将数据加载到redis中
+    load_data_to_redis()
     return app

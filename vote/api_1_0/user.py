@@ -78,14 +78,4 @@ def apply():
     return jsonify({'code': 200, 'msg': '报名成功', 'cid': cid})
 
 
-@api.route('/')
-def index():
-    u = User.objects.all().limit(1)
-    return jsonify({'u': User.objects.all(), 'c': Competitor.objects.all(), 'r': redis_conn.zrange('rank_list', 0, 5)})
 
-
-@api.route('/load')
-def load():
-    current_app.logger.info("load data to redis")
-    load_data_to_redis()
-    return "load data"
