@@ -1,3 +1,6 @@
+# coding=utf-8
+import json
+
 from flask import jsonify, request, current_app
 from flask_jwt_extended import (
     jwt_required, get_jwt_claims, get_jwt_identity)
@@ -32,7 +35,7 @@ def change_competitor_state():
         redis_conn.zadd(REDIS_RANKING_LIST_KEY, {competitor.cid: competitor.vote_num})
     else:
         # 否则从redis排行榜中移除
-        redis_conn.zrem(REDIS_RANKING_LIST_KEY,competitor.cid)
+        redis_conn.zrem(REDIS_RANKING_LIST_KEY, competitor.cid)
     # 记录日志
     current_app.logger.info(
         "competitor state change username:" + str(get_jwt_identity()) + "cid:" + cid + " new state" + new_state)
@@ -53,7 +56,7 @@ def change_competitor_info():
     except DoesNotExist:
         return jsonify({'code': 400, 'msg': '无效的cid'})
 
-    # 如果更新了tel的化，那么首先尝试更新tel
+    # 如果更新了tel的，那么首先尝试更新tel
     tel = request.json.get('tel', None)
     if tel is not None:
         # 更新电话之前，需要验证新的电话是否重复
@@ -71,9 +74,15 @@ def change_competitor_info():
         competitor.name = name
     # 将更新保存到数据库中
     competitor.save()
+    # 将参赛者信息的更改同步到redis
+    json_str = json.dumps(
+        {'name': competitor.name, 'nickname': competitor.nickname, 'tel': competitor.tel,
+         'vote_num': competitor.vote_num},
+        ensure_ascii=False)
+    redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=competitor.cid, value=json_str)
     # 记录日志
-    current_app.logger.info(
-        "admin change competitor info:" + str(get_jwt_identity()) + str(competitor))
+    # current_app.logger.info(
+    #    "admin change competitor info:" + str(get_jwt_identity()) + str(competitor))
     return jsonify({'code': 200, 'msg': '更新完成'})
 
 
@@ -82,7 +91,7 @@ def change_competitor_info():
 def add_vote_to_competitor():
     claims = get_jwt_claims()
     # 只有拥有管理员权限的人才能够加票
-    if not 'admin'.__eq__(claims):
+    if 'admin' != claims:
         return jsonify({'code': 400, 'msg': '权限不够'})
     cid = request.json.get('cid', None)
     votes = request.json.get('votes', None)

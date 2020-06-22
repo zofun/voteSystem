@@ -1,3 +1,4 @@
+# coding=utf-8
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -15,6 +16,7 @@ from vote.constants import *
 redis_conn = None
 # mongoDB连接
 db = None
+# 配置信息
 conf = None
 
 
@@ -34,7 +36,7 @@ def load_data_to_redis():
     """将参赛者信息加载到redis中
     包括排名zset
     记录参赛者信息的hash
-    记录给参赛者所
+    为参赛者维护一个投票set，记录所有给他投票的用户信息
     :return:
     """
     from vote.models import Competitor

@@ -1,3 +1,4 @@
+# coding=utf-8
 import json
 import re
 
@@ -27,12 +28,12 @@ def search():
     competitors = Competitor.objects(**search)
     res_json = {'count': len(competitors), 'code': 0}
     data = []
-    competitor_num=redis_conn.zcard(REDIS_RANKING_LIST_KEY)
+    competitor_num = redis_conn.zcard(REDIS_RANKING_LIST_KEY)
     for item in competitors:
         # 从redis,因为redis zset是从小到大进行排序的，因此这里需要计算一下分数从大到小的排名
-        rank=competitor_num-redis_conn.zrank(REDIS_RANKING_LIST_KEY,item.cid)
+        rank = competitor_num - redis_conn.zrank(REDIS_RANKING_LIST_KEY, item.cid)
         data.append({'cid': item.cid, 'name': item.name
                         , 'nickname': item.nickname, 'tel': item.tel
-                        , 'vote_num': item.vote_num,'rank':rank})
+                        , 'vote_num': item.vote_num, 'rank': rank})
     res_json['data'] = data
     return json.dumps(res_json, ensure_ascii=False)
