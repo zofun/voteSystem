@@ -6,7 +6,7 @@ from logging.handlers import RotatingFileHandler
 import redis
 from flask import Flask
 from flask_jwt_extended import JWTManager
-from flask_mongoengine import MongoEngine
+from pymongo import MongoClient
 
 from config import configs
 from vote.constants import *
@@ -15,6 +15,8 @@ from vote.constants import *
 # redis连接
 redis_conn = None
 # mongoDB连接
+mongo_conn = None
+# mongoDB数据库对象
 db = None
 # 配置信息
 conf = None
@@ -39,19 +41,6 @@ def load_data_to_redis():
     为参赛者维护一个投票set，记录所有给他投票的用户信息
     :return:
     """
-    from vote.models import Competitor
-    competitors = Competitor.objects().all()
-    for item in competitors:
-        # 用于计算排名的zset
-        redis_conn.zadd(REDIS_RANKING_LIST_KEY, {item.cid: item.vote_num})
-        # 存储每个参赛用户的详细信息
-        json_str = json.dumps(
-            {'name': item.name, 'nickname': item.nickname, 'tel': item.tel,'vote_num':item.vote_num},
-            ensure_ascii=False)
-        redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=item.cid, value=json_str)
-        for u in item.vote:
-            # 为每个参赛者维护一个投票set，记录给它投票的用户的objectId
-            redis_conn.sadd(REDIS_VOTE_PREFIX + item.cid, u)
 
 
 def get_app(config_name):
@@ -67,16 +56,12 @@ def get_app(config_name):
     # 加载配置文件
     app.config.from_object(configs[config_name])
     # 对mongoDB进行配置
-    app.config['MONGODB_SETTINGS'] = {
-        'db': conf.MONGODB_DB,
-        'host': conf.MONGODB_HOST,
-        'port': conf.MONGODB_PORT,
-        'authentication_source': conf.MONGODB_AUTHENTICATION_SOURCE,
-        'username': conf.MONGODB_USERNAME,
-        'password': conf.MONGODB_PASSWORD
-    }
+
+    global mongo_conn
+    mongo_conn = MongoClient('mongodb://localhost:27017/')
     global db
-    db = MongoEngine(app)
+    db = mongo_conn[conf.MONGODB_DB]
+    # mongo_conn = MongoClient("mongodb://"+conf.MONGODB_USERNAME+":"+conf.MONGODB_PASSWORD+"@"+conf.MONGODB_HOST+":"+str(conf.MONGODB_PORT)+"/"+conf.MONGODB_DB)
 
     # 对jwt进行配置
     app.config['JWT_SECRET_KEY'] = conf.JWT_SECRET_KEY
@@ -91,6 +76,4 @@ def get_app(config_name):
     from vote.api_1_0 import api
     # 注册到蓝图
     app.register_blueprint(api)
-    # 启动后就将数据加载到redis中
-    load_data_to_redis()
     return app
