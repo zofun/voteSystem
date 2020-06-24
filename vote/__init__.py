@@ -1,5 +1,4 @@
 # coding=utf-8
-import json
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -34,7 +33,7 @@ def setup_logging(levle):
     logging.getLogger().addHandler(file_log_handler)
 
 
-def create_index_to_mongo():
+def create_index_for_mongo():
     """为mongo创建索引
     需要创建索引的字段有这些：
     competitors集合中：
@@ -77,7 +76,7 @@ def get_app(config_name):
     db = mongo_conn[conf.MONGODB_DB]
     # mongo_conn = MongoClient("mongodb://"+conf.MONGODB_USERNAME+":"+conf.MONGODB_PASSWORD+"@"+conf.MONGODB_HOST+":"+str(conf.MONGODB_PORT)+"/"+conf.MONGODB_DB)
     # 确保mongodb中指定的索引已经创建
-    create_index_to_mongo()
+    create_index_for_mongo()
     # 对jwt进行配置
     app.config['JWT_SECRET_KEY'] = conf.JWT_SECRET_KEY
     jwt = JWTManager(app)

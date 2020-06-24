@@ -18,13 +18,13 @@ def change_competitor_state():
     claims = get_jwt_claims()
     # 只有为管理员身份的时候才能够修改参赛者的状态
     if 'admin' != claims:
-        return jsonify({'code': 400, 'msg': '权限不够'})
+        return jsonify({'code': NO_PERMISSION, 'msg': '权限不够'}), 200
     cid = request.json.get('cid', None)
     new_state = request.json.get('state', None)
     # 判断cid的有效性
     competitor = db.competitors.find_one({"cid": cid})
     if competitor is None:
-        return jsonify({'code': 400, 'msg': '无效的cid'})
+        return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '无效的cid'}), 200
     competitor['state'] = new_state
     db.competitors.update({"cid": cid}, {"$set": {"state": new_state}})
     # 更新缓存
@@ -37,7 +37,7 @@ def change_competitor_state():
     # 记录日志
     current_app.logger.info(
         "change competitor state:admin username:" + str(get_jwt_identity()) + "cid:" + cid + " new state" + new_state)
-    return jsonify({'code': 200, 'msg': '更新成功'})
+    return jsonify({'code': SUCCESS, 'msg': '更新成功'}), 200
 
 
 @api.route('/change_competitor_info', methods=['POST'])
@@ -52,11 +52,11 @@ def change_competitor_info():
     name = request.json.get('name', None)
     # 只有为管理员身份的时候才能够修改参赛者的信息
     if 'admin' != claims:
-        return jsonify({'code': 400, 'msg': '权限不够'})
+        return jsonify({'code': NO_PERMISSION, 'msg': '权限不够'}), 200
 
     competitor = db.competitors.find_one({"cid": cid})
     if competitor is None:
-        return jsonify({'code': 400, 'msg': '无效的cid'})
+        return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '无效的cid'}), 200
     if tel is not None:
         competitor['tel'] = tel
     if nickname is not None:
@@ -68,7 +68,7 @@ def change_competitor_info():
     try:
         db.competitors.update({"cid": cid}, competitor)
     except pymongo.errors.DuplicateKeyError:
-        return jsonify({'code': 400, 'msg': 'tel重复'})
+        return jsonify({'code': ILLEGAL_PARAMETER, 'msg': 'tel重复'}), 200
     # 将参赛者信息的更改同步到redis
     json_str = json.dumps(
         {'name': competitor['name'], 'nickname': competitor['nickname'], 'tel': competitor['tel'],
@@ -79,7 +79,7 @@ def change_competitor_info():
     current_app.logger.info(
         "admin change competitor info: admin username:" + str(get_jwt_identity())
         + "competitor cid+:" + str(competitor['cid']))
-    return jsonify({'code': 200, 'msg': '更新完成'})
+    return jsonify({'code': SUCCESS, 'msg': '更新完成'}), 200
 
 
 @api.route('/add_vote', methods=['POST'])
@@ -88,7 +88,7 @@ def add_vote_to_competitor():
     claims = get_jwt_claims()
     # 只有拥有管理员权限的人才能够加票
     if 'admin' != claims:
-        return jsonify({'code': 400, 'msg': '权限不够'})
+        return jsonify({'code': NO_PERMISSION, 'msg': '权限不够'}), 200
     cid = request.json.get('cid', None)
     votes = request.json.get('votes', None)
     # 首先修改redis中的信息
@@ -98,5 +98,4 @@ def add_vote_to_competitor():
     current_app.logger.info(
         "admin add vote: admin username:" + str(get_jwt_identity()) + "competitor cid+:"
         + cid + " votes:" + votes)
-
-    return jsonify({'code': 200, 'msg': '加票成功'})
+    return jsonify({'code': SUCCESS, 'msg': '加票成功'}), 200

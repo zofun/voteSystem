@@ -17,11 +17,11 @@ def search():
     tel = request.args.get('tel', '')
 
     search = {'$or': [
-            {'name': re.compile(name)},
-            {'tel': re.compile(tel)},
-            {'nickname': re.compile(nickname)},
-            {'cid': re.compile(cid)}
-        ]
+        {'name': re.compile(name)},
+        {'tel': re.compile(tel)},
+        {'nickname': re.compile(nickname)},
+        {'cid': re.compile(cid)}
+    ]
     }
     competitors = db.competitors.find(search)
     res_json = {'count': competitors.count(), 'code': 0}
@@ -38,4 +38,4 @@ def search():
                         , 'nickname': item['nickname'], 'tel': item['tel']
                         , 'vote_num': item['vote_num'], 'rank': rank})
     res_json['data'] = data
-    return json.dumps(res_json, ensure_ascii=False)
+    return json.dumps(res_json, ensure_ascii=False), 200

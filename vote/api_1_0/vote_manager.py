@@ -16,7 +16,7 @@ from vote import db
 def vote(cid):
     competitor_info = redis_conn.hget(REDIS_COMPETITOR_HASH_KEY, cid)
     if competitor_info is None:
-        return jsonify({'code': 400, "msg": '没有该参赛者'})
+        return jsonify({'code': ILLEGAL_PARAMETER, "msg": '没有该参赛者'}), 200
     dict_json = json.loads(competitor_info)
     identity = get_jwt_identity()
     # 如果redis中还没有缓存该参赛者选票信息，需要首先将数据加载到redis中
@@ -31,8 +31,8 @@ def vote(cid):
         db.competitors.update({"cid": cid}, {"$inc": {"vote_num": 1}, "$push": {"vote": identity}})
         # 记录日志
         current_app.logger.info("vote:" + identity + "to" + cid)
-        return jsonify({'code': 200, 'msg': '投票成功'})
-    return jsonify({'code': 200, 'msg': '已经投过票了'})
+        return jsonify({'code': SUCCESS, 'msg': '投票成功'}), 200
+    return jsonify({'code': SUCCESS, 'msg': '已经投过票了'}), 200
 
 
 @api.route('/get_ranking_list', methods=['GET'])
