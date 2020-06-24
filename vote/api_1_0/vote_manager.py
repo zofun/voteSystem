@@ -28,6 +28,7 @@ def vote(cid):
         # 投票数量加一
         redis_conn.zincrby(REDIS_RANKING_LIST_KEY, 1, cid)
         # 修改数据库中参赛者的信息
+        # todo 将投票的用户信息 抽取到一个单独的集合中取
         db.competitors.update({"cid": cid}, {"$inc": {"vote_num": 1}, "$push": {"vote": identity}})
         # 记录日志
         current_app.logger.info("vote:" + identity + "to" + cid)
@@ -62,6 +63,7 @@ def get_ranking_list():
                 {'name': competitor['name'], 'nickname': competitor['nickname']
                     , 'tel': competitor['tel'], 'vote_num': competitor['vote_num'], "cid": competitor['cid']}
                 , ensure_ascii=False)
+            # todo 将存储参赛者信息的redis hash 改为string 并设置过期时间，过期时间使用常量统一设置
             redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=competitor['cid'], value=competitor_info)
         dict = json.loads(competitor_info)
         rank += 1

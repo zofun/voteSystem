@@ -74,6 +74,7 @@ def change_competitor_info():
         {'name': competitor['name'], 'nickname': competitor['nickname'], 'tel': competitor['tel'],
          'vote_num': competitor['vote_num'], "cid": competitor['cid']},
         ensure_ascii=False)
+    # todo redis中存储参赛者信息的hash改为string
     redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=competitor['cid'], value=json_str)
     # 记录日志
     current_app.logger.info(
@@ -93,6 +94,7 @@ def add_vote_to_competitor():
     votes = request.json.get('votes', None)
     # 首先修改redis中的信息
     redis_conn.zincrby(REDIS_RANKING_LIST_KEY, votes, cid)
+    # todo 这里加票不再仅仅更新参赛者的票数信息，要将投票记录放入投票集合中去
     db.competitors.update({"cid": cid}, {"$inc": {"vote_num": int(votes)}})
     # 记录日志
     current_app.logger.info(

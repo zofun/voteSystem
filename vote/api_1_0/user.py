@@ -59,6 +59,7 @@ def apply():
     # 利用参赛者总数来生成一个6位的id
     c = db.competitors.find().count()
     cid = str(c + 1).zfill(6)
+    # todo 参赛者文档模型修改会影响到这里
     competitor = {"cid": cid, "name": name, "nickname": nickname, "tel": tel, "vote_num": 0, "state": "join",
                   "vote": []}
     try:
