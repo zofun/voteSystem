@@ -43,6 +43,7 @@ def get_ranking_list():
     # 首先判断redis中zset是否存在，如果不存在就查询数据库，将数据导入redis的zset中
     flag = redis_conn.exists(REDIS_RANKING_LIST_KEY)
     if flag != 1:
+        # redis中还不存在zset排行榜则进行导入
         load_data_util.load_rank_to_redis()
     rank_list = redis_conn.zrange(REDIS_RANKING_LIST_KEY, start=begin, end=begin + int(limit) - 1, desc=True)
     # 返回的json中应该包含参赛者总数
@@ -62,7 +63,6 @@ def get_ranking_list():
                     , 'tel': competitor['tel'], 'vote_num': competitor['vote_num'], "cid": competitor['cid']}
                 , ensure_ascii=False)
             redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=competitor['cid'], value=competitor_info)
-
         dict = json.loads(competitor_info)
         rank += 1
         dict['rank'] = rank
@@ -70,4 +70,4 @@ def get_ranking_list():
         data.append(dict)
     res_json['data'] = data
     res_json['code'] = 0
-    return json.dumps(res_json, ensure_ascii=False)
+    return json.dumps(res_json, ensure_ascii=False), 200

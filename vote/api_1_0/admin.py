@@ -1,10 +1,10 @@
 # coding=utf-8
 import json
 
+import pymongo
 from flask import jsonify, request, current_app
 from flask_jwt_extended import (
     jwt_required, get_jwt_claims, get_jwt_identity)
-from mongoengine import DoesNotExist
 
 from vote import redis_conn, db
 from vote.api_1_0 import api
@@ -29,7 +29,7 @@ def change_competitor_state():
     db.competitors.update({"cid": cid}, {"$set": {"state": new_state}})
     # 更新缓存
     if 'join' == new_state:
-        # 如果更新为参赛状态，那么加入redis排行榜中
+        # 如果更新为参赛状态，那么加入redis排行榜（zset）中
         redis_conn.zadd(REDIS_RANKING_LIST_KEY, {competitor['cid']: competitor['vote_num']})
     else:
         # 否则从redis排行榜中移除
@@ -45,34 +45,35 @@ def change_competitor_state():
 def change_competitor_info():
     # 获取当前用户的身份
     claims = get_jwt_claims()
+    # 获取请求数据
+    cid = request.json.get('cid', None)
+    tel = request.json.get('tel', None)
+    nickname = request.json.get('nickname', None)
+    name = request.json.get('name', None)
     # 只有为管理员身份的时候才能够修改参赛者的信息
     if 'admin' != claims:
         return jsonify({'code': 400, 'msg': '权限不够'})
-    cid = request.json.get('cid', None)
+
     competitor = db.competitors.find_one({"cid": cid})
     if competitor is None:
         return jsonify({'code': 400, 'msg': '无效的cid'})
-    # 如果更新了tel的，那么首先尝试更新tel
-    tel = request.json.get('tel', None)
     if tel is not None:
-        count = db.competitors.find({"tel": tel}).count()
-        if count >= 1:
-            return jsonify({'code': 400, 'msg': 'tel重复'})
         competitor['tel'] = tel
-    # 更新nickname
-    nickname = request.json.get('nickname', None)
     if nickname is not None:
         competitor['nickname'] = nickname
-    # 更新name
-    name = request.json.get('name', None)
     if name is not None:
         competitor['name'] = name
-    db.competitors.update({"cid": cid}, competitor)
+
+    # 将参赛者信息同步到数据库中
+    try:
+        db.competitors.update({"cid": cid}, competitor)
+    except pymongo.errors.DuplicateKeyError:
+        return jsonify({'code': 400, 'msg': 'tel重复'})
     # 将参赛者信息的更改同步到redis
     json_str = json.dumps(
-        {'name': competitor['name'], 'nickname': competitor['nickname']
-            , 'tel': competitor['tel'], 'vote_num': competitor['vote_num'], "cid": competitor['cid']}
-        , ensure_ascii=False)
+        {'name': competitor['name'], 'nickname': competitor['nickname'], 'tel': competitor['tel'],
+         'vote_num': competitor['vote_num'], "cid": competitor['cid']},
+        ensure_ascii=False)
     redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=competitor['cid'], value=json_str)
     # 记录日志
     current_app.logger.info(
