@@ -1,5 +1,6 @@
 # coding=utf-8
 import json
+import time
 
 import pymongo
 from flask import jsonify, request, current_app
@@ -28,7 +29,7 @@ def change_competitor_state():
     competitor['state'] = new_state
     db.competitors.update({"cid": cid}, {"$set": {"state": new_state}})
     # 更新缓存
-    if 'join' == new_state:
+    if COMPETITOR_STATE_JOIN == int(new_state):
         # 如果更新为参赛状态，那么加入redis排行榜（zset）中
         redis_conn.zadd(REDIS_RANKING_LIST_KEY, {competitor['cid']: competitor['vote_num']})
     else:
@@ -74,8 +75,10 @@ def change_competitor_info():
         {'name': competitor['name'], 'nickname': competitor['nickname'], 'tel': competitor['tel'],
          'vote_num': competitor['vote_num'], "cid": competitor['cid']},
         ensure_ascii=False)
-    # todo redis中存储参赛者信息的hash改为string
-    redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=competitor['cid'], value=json_str)
+
+    redis_conn.set(competitor['cid'],json_str)
+    # 设置过期时间
+    redis_conn.expire(competitor['cid'],REDIS_KEY_EXPIRE_COMPETITOR_INFO)
     # 记录日志
     current_app.logger.info(
         "admin change competitor info: admin username:" + str(get_jwt_identity())
@@ -86,6 +89,7 @@ def change_competitor_info():
 @api.route('/add_vote', methods=['POST'])
 @jwt_required
 def add_vote_to_competitor():
+    username=get_jwt_identity()
     claims = get_jwt_claims()
     # 只有拥有管理员权限的人才能够加票
     if 'admin' != claims:
@@ -94,8 +98,9 @@ def add_vote_to_competitor():
     votes = request.json.get('votes', None)
     # 首先修改redis中的信息
     redis_conn.zincrby(REDIS_RANKING_LIST_KEY, votes, cid)
-    # todo 这里加票不再仅仅更新参赛者的票数信息，要将投票记录放入投票集合中去
     db.competitors.update({"cid": cid}, {"$inc": {"vote_num": int(votes)}})
+    # 将本次管理员加票的信息存放到votes集合中
+    db.votes.insert({"cid":cid,"username":username,"vote_num":votes,"date": time.time()})
     # 记录日志
     current_app.logger.info(
         "admin add vote: admin username:" + str(get_jwt_identity()) + "competitor cid+:"

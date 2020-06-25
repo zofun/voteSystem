@@ -10,7 +10,7 @@ def load_rank_to_redis():
     """
     competitors = db.competitors.find()
     for c in competitors:
-        if c['state'] == 'join':
+        if c['state'] ==COMPETITOR_STATE_JOIN:
             # 只将处于参赛状态的参赛者加入的redis的zset中，做排行处理
             redis_conn.zadd(REDIS_RANKING_LIST_KEY, {c['cid']: c['vote_num']})
 
@@ -20,6 +20,8 @@ def load_vote_info_to_redis(cid):
     :param cid:
     :return:
     """
-    competitor = db.competitors.find_one({"cid": cid})
-    for u in competitor['vote']:
-        redis_conn.sadd(REDIS_VOTE_PREFIX + cid, u)
+    votes = db.votes.find({"cid": cid})
+    for vote in votes:
+        redis_conn.sadd(REDIS_VOTE_PREFIX + cid, vote['username'])
+    # 设置过期时间
+    redis_conn.expire(REDIS_VOTE_PREFIX+cid, REDIS_KEY_EXPIRE_VOTE_SET)

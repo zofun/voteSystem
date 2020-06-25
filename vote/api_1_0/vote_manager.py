@@ -1,5 +1,6 @@
 # coding=utf-8
 import json
+import time
 
 from flask import jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -14,10 +15,9 @@ from vote import db
 @api.route('/vote/<cid>')
 @jwt_required
 def vote(cid):
-    competitor_info = redis_conn.hget(REDIS_COMPETITOR_HASH_KEY, cid)
+    competitor_info = redis_conn.get(cid)
     if competitor_info is None:
         return jsonify({'code': ILLEGAL_PARAMETER, "msg": '没有该参赛者'}), 200
-    dict_json = json.loads(competitor_info)
     identity = get_jwt_identity()
     # 如果redis中还没有缓存该参赛者选票信息，需要首先将数据加载到redis中
     flag = redis_conn.exists(REDIS_VOTE_PREFIX + cid)
@@ -28,8 +28,8 @@ def vote(cid):
         # 投票数量加一
         redis_conn.zincrby(REDIS_RANKING_LIST_KEY, 1, cid)
         # 修改数据库中参赛者的信息
-        # todo 将投票的用户信息 抽取到一个单独的集合中取
-        db.competitors.update({"cid": cid}, {"$inc": {"vote_num": 1}, "$push": {"vote": identity}})
+        db.competitors.update({"cid": cid}, {"$inc": {"vote_num": 1}})
+        db.votes.insert({"cid": cid, "username": identity, "vote_num": 1, "date": time.time()})
         # 记录日志
         current_app.logger.info("vote:" + identity + "to" + cid)
         return jsonify({'code': SUCCESS, 'msg': '投票成功'}), 200
@@ -54,7 +54,7 @@ def get_ranking_list():
     rank = begin
     for cid in rank_list:
         # 首先尝试从redis中获取用户的详细信息，获取不到再从数据库中查询，然后存入redis
-        competitor_info = redis_conn.hget(REDIS_COMPETITOR_HASH_KEY, cid)
+        competitor_info = redis_conn.get(cid)
         if competitor_info is None:
             # redis中没查到，从数据库中查询
             competitor = db.competitors.find_one({"cid": cid})
@@ -63,8 +63,8 @@ def get_ranking_list():
                 {'name': competitor['name'], 'nickname': competitor['nickname']
                     , 'tel': competitor['tel'], 'vote_num': competitor['vote_num'], "cid": competitor['cid']}
                 , ensure_ascii=False)
-            # todo 将存储参赛者信息的redis hash 改为string 并设置过期时间，过期时间使用常量统一设置
-            redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=competitor['cid'], value=competitor_info)
+            redis_conn.set(competitor['cid'], competitor_info)
+            redis_conn.expire(competitor['cid'], REDIS_KEY_EXPIRE_COMPETITOR_INFO)
         dict = json.loads(competitor_info)
         rank += 1
         dict['rank'] = rank

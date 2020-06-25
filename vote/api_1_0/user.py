@@ -38,7 +38,7 @@ def register():
     if not username or not password:
         # 验证表达数据的完整性
         return jsonify({'code': PARAMETER_ERROR, 'msg': '数据不完整'}), 200
-    user = {"username": username, "password": password, "role": "user"}
+    user = {"username": username, "password": password, "role": "admin"}
     try:
         db.users.insert_one(user)
     except pymongo.errors.DuplicateKeyError:
@@ -59,9 +59,7 @@ def apply():
     # 利用参赛者总数来生成一个6位的id
     c = db.competitors.find().count()
     cid = str(c + 1).zfill(6)
-    # todo 参赛者文档模型修改会影响到这里
-    competitor = {"cid": cid, "name": name, "nickname": nickname, "tel": tel, "vote_num": 0, "state": "join",
-                  "vote": []}
+    competitor = {"cid": cid, "name": name, "nickname": nickname, "tel": tel, "vote_num": 0, "state": COMPETITOR_STATE_JOIN}
     try:
         db.competitors.insert_one(competitor)
     except pymongo.errors.DuplicateKeyError:
