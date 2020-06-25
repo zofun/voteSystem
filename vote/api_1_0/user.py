@@ -1,15 +1,15 @@
+# coding=utf-8
 import json
 
+import pymongo
 from flask import jsonify, current_app, request
 from flask_jwt_extended import (
     create_access_token
 )
-from mongoengine import Q
 
-from vote import redis_conn, load_data_to_redis, REDIS_RANKING_LIST_KEY, REDIS_COMPETITOR_HASH_KEY
+from vote import redis_conn, db, REDIS_RANKING_LIST_KEY
 from vote.api_1_0 import api
-from vote.models import Competitor
-from vote.models import User
+from vote.constants import *
 
 
 @api.route('/login', methods=['POST'])
@@ -18,15 +18,17 @@ def login():
     username = request.json.get('username', None)
     password = request.json.get('password', None)
     if not username or not password:
-        return jsonify({'code': 400, 'msg': '数据不完整'}), 400
+        return jsonify({'code': PARAMETER_ERROR, 'msg': '数据不完整'}), 200
     # 从数据库中查询，验证用户名密码的正确性
-    u = User.objects(Q(username=username) & Q(password=password))
-    if len(u) >= 1:
+    u = db.users.find_one({"username": username, "password": password})
+    if u is not None:
         # 生成token
-        access_token = create_access_token(identity=u[0].username, user_claims=u[0].role)
-        return jsonify({'code': 200, 'token': access_token}), 200
+        access_token = create_access_token(identity=u['username'], user_claims=u['role'])
+        # 记录用户登录的日志
+        current_app.logger.info("user login:" + str(u))
+        return jsonify({'code': SUCCESS, 'token': access_token}), 200
     else:
-        return jsonify({'code': 400, 'msg': '账户或密码错误'}), 400
+        return jsonify({'code': LOGIN_FAILED, 'msg': '账户或密码错误'}), 200
 
 
 @api.route('register', methods=['POST'])
@@ -34,17 +36,17 @@ def register():
     username = request.json.get('username', None)
     password = request.json.get('password', None)
     if not username or not password:
-        return jsonify({'code': 400, 'msg': '数据不完整'}), 400
-    else:
-        # 确保username是唯一的
-        count = User.objects(username=username).count()
-        if count >= 1:
-            return jsonify({'code': 400, 'msg': '账号已被占用'}), 400
-        u = User(username=username, password=password)
-        # 用户注册成功保存到数据库
-        u.save()
-        current_app.logger.info("user register" + str(u))
-        return jsonify({'code': 200, 'msg': '注册成功'}), 200
+        # 验证表达数据的完整性
+        return jsonify({'code': PARAMETER_ERROR, 'msg': '数据不完整'}), 200
+    user = {"username": username, "password": password, "role": "user"}
+    try:
+        db.users.insert_one(user)
+    except pymongo.errors.DuplicateKeyError:
+        # username 键建立了唯一索引，如果username重复，那么插入会失败，会抛出异常
+        return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '账号已被占用'}), 200
+    # 记录用户注册的日志
+    current_app.logger.info("user register:" + str(user))
+    return jsonify({'code': SUCCESS, 'msg': '注册成功'}), 200
 
 
 @api.route('/apply', methods=['POST'])
@@ -53,38 +55,18 @@ def apply():
     nickname = request.json.get('nickname', None)
     tel = request.json.get('tel', None)
     if not name or not nickname or not tel:
-        return jsonify({'code': 400, 'msg': '请求参数错误'})
-
-    # 确保电话的是唯一的
-    count = Competitor.objects(tel=tel).count()
-    if count >= 1:
-        return jsonify({'code': 400, 'msg': '电话号重复'})
-    # 生成唯一的参赛者编号
-    # 利用参赛者总是来生成一个6位的id
-    c = Competitor.objects.all().count()
+        return jsonify({'code': PARAMETER_ERROR, 'msg': '请求参数错误'}), 200
+    # 利用参赛者总数来生成一个6位的id
+    c = db.competitors.find().count()
     cid = str(c + 1).zfill(6)
-    competitor = Competitor(cid=cid, nickname=nickname, tel=tel, name=name, vote_num=0)
-    # 保存到数据库
-    competitor.save()
-
-    # 将参赛者信息同步到redis
-    redis_conn.zadd(REDIS_RANKING_LIST_KEY, {competitor.cid: 0})
-    # 存储每个参赛用户的详细信息
-    json_str = json.dumps(
-        {'name': competitor.name, 'nickname': competitor.nickname, 'tel': competitor.tel, 'vote_num': 0},
-        ensure_ascii=False)
-    redis_conn.hset(name=REDIS_COMPETITOR_HASH_KEY, key=cid, value=json_str)
-    return jsonify({'code': 200, 'msg': '报名成功', 'cid': cid})
-
-
-@api.route('/')
-def index():
-    u = User.objects.all().limit(1)
-    return jsonify({'u': User.objects.all(), 'c': Competitor.objects.all(), 'r': redis_conn.zrange('rank_list', 0, 5)})
-
-
-@api.route('/load')
-def load():
-    current_app.logger.info("load data to redis")
-    load_data_to_redis()
-    return "load data"
+    # todo 参赛者文档模型修改会影响到这里
+    competitor = {"cid": cid, "name": name, "nickname": nickname, "tel": tel, "vote_num": 0, "state": "join",
+                  "vote": []}
+    try:
+        db.competitors.insert_one(competitor)
+    except pymongo.errors.DuplicateKeyError:
+        return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '电话号重复'}), 200
+    # 将新报名的参赛者cid加入到排行榜
+    redis_conn.zadd(REDIS_RANKING_LIST_KEY, {cid: 0})
+    current_app.logger.info("apply:" + str(competitor))
+    return jsonify({'code': SUCCESS, 'msg': '报名成功', 'cid': cid}), 200
