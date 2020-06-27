@@ -6,7 +6,7 @@ REDIS_COMPETITOR_HASH_KEY = 'competitors'
 REDIS_VOTE_PREFIX = 'vote:'
 
 # redis分割符
-REDIS_SPLIT=':'
+REDIS_SPLIT = ':'
 
 # redis中一些键的过期时间
 # 参赛者信息的过期时间
@@ -34,8 +34,7 @@ COMPETITOR_STATE_JOIN = 1
 # 退赛状态
 COMPETITOR_STATE_OUT = 0
 
-
 # 用户每天最多能投的票数
-N=10
+N = 10
 # 用户每天最多给一个用户的最大票数
-M=5
+M = 2

@@ -1,16 +1,15 @@
 # coding=utf-8
-import datetime
 import json
 import time
 
 from flask import jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
+from vote import db
 from vote import redis_conn
 from vote.api_1_0 import api
 from vote.constants import *
 from vote.utils import load_data_util
-from vote import db
 
 
 @api.route('/vote/<cid>')
@@ -21,39 +20,42 @@ def vote(cid):
         return jsonify({'code': ILLEGAL_PARAMETER, "msg": '没有该参赛者'}), 200
     identity = get_jwt_identity()
     # 首先判断该用户是否还有选票
-    user=db.users.find_one({"username":identity})
-    if int(user['vote'])==0:
+    user = db.users.find_one({"username": identity})
+    if int(user['vote']) == 0:
         return jsonify({'code': SUCCESS, 'msg': '今日选票已用完'}), 200
     # 如果redis中还没有缓存该参赛者选票信息，需要首先将数据加载到redis中
-    flag = redis_conn.exists(identity+REDIS_SPLIT+cid)
+    flag = redis_conn.exists(identity + REDIS_SPLIT + cid)
     if flag != 1:
         # 加载选手的选票信息
         load_data_util.load_vote_info_to_redis(cid)
     # 拿到今天该用户给该参数者的投票数量
-    vote_num=redis_conn.get(identity+REDIS_SPLIT+cid)
+    vote_num = redis_conn.get(identity + REDIS_SPLIT + cid)
     # 给该用户的投票还没达到阈值
-    if vote_num is None or vote_num<M:
+    if vote_num is None or int(vote_num) < M:
         # 更新分值，更新zset排行榜。（票数）+（低8位的时间戳）
-        old_score=redis_conn.zscore(REDIS_RANKING_LIST_KEY,cid)
+        old_score = redis_conn.zscore(REDIS_RANKING_LIST_KEY, cid)
         if old_score is None:
-            old_score=0
+            old_score = 0
         # 取出的旧的分数
-        old_vote=old_score/100000000
+        old_vote = old_score / 100000000
         # 获取当前微级时间戳
-        timestamp=int(round(time.time() * 1000000))
+        timestamp = int(round(time.time() * 1000000))
         # 拼接得到新的score
 
-        new_socre=(old_vote+1)*100000000+timestamp%100000000
-        # 设置或更新
-        # todo 这里报错
-        redis_conn.zadd(REDIS_RANKING_LIST_KEY, new_socre, cid)
+        new_socre = (old_vote + 1) * 100000000 + timestamp % 100000000
+        # 设置或更新zset
+        redis_conn.zadd(REDIS_RANKING_LIST_KEY, {cid: new_socre})
+        # 更新redis中的选票信息
+        if vote_num is None:
+            vote_num = 0
+        redis_conn.set(identity + REDIS_SPLIT + cid, int(vote_num) + 1)
         # 修改数据库中参赛者的信息
         db.competitors.update({"cid": cid}, {"$inc": {"vote_num": 1}})
         # data直接存时间戳
         timestamp = int(round(time.time() * 1000000))
         db.votes.insert({"cid": cid, "username": identity, "vote_num": 1, "date": timestamp})
         # 更新用户所拥有的选票
-        db.users.update({"username":identity},{"$inc":{"vote":-1}})
+        db.users.update({"username": identity}, {"$inc": {"vote": -1}})
         # 记录日志
         current_app.logger.info("vote:" + identity + "to" + cid)
         return jsonify({'code': SUCCESS, 'msg': '投票成功'}), 200
@@ -92,7 +94,7 @@ def get_ranking_list():
         dict = json.loads(competitor_info)
         rank += 1
         dict['rank'] = rank
-        dict['vote_num'] = redis_conn.zscore(REDIS_RANKING_LIST_KEY, cid)/100000000
+        dict['vote_num'] = int(redis_conn.zscore(REDIS_RANKING_LIST_KEY, cid) / 100000000)
         data.append(dict)
     res_json['data'] = data
     res_json['code'] = 0

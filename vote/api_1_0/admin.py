@@ -1,5 +1,4 @@
 # coding=utf-8
-import datetime
 import json
 import time
 
@@ -77,9 +76,9 @@ def change_competitor_info():
          'vote_num': competitor['vote_num'], "cid": competitor['cid']},
         ensure_ascii=False)
 
-    redis_conn.set(competitor['cid'],json_str)
+    redis_conn.set(competitor['cid'], json_str)
     # 设置过期时间
-    redis_conn.expire(competitor['cid'],REDIS_KEY_EXPIRE_COMPETITOR_INFO)
+    redis_conn.expire(competitor['cid'], REDIS_KEY_EXPIRE_COMPETITOR_INFO)
     # 记录日志
     current_app.logger.info(
         "admin change competitor info: admin username:" + str(get_jwt_identity())
@@ -90,7 +89,7 @@ def change_competitor_info():
 @api.route('/add_vote', methods=['POST'])
 @jwt_required
 def add_vote_to_competitor():
-    username=get_jwt_identity()
+    username = get_jwt_identity()
     claims = get_jwt_claims()
     # 只有拥有管理员权限的人才能够加票
     if 'admin' != claims:
@@ -109,13 +108,13 @@ def add_vote_to_competitor():
     # 拼接得到新的score
     new_socre = (old_vote + votes) * 100000000 + timestamp % 100000000
     # 设置或更新
-    redis_conn.zadd(REDIS_RANKING_LIST_KEY, new_socre, cid)
+    redis_conn.zadd(REDIS_RANKING_LIST_KEY, {cid: new_socre})
 
     db.competitors.update({"cid": cid}, {"$inc": {"vote_num": int(votes)}})
     # 将本次管理员加票的信息存放到votes集合中
     # data直接存时间戳
     timestamp = int(round(time.time() * 1000000))
-    db.votes.insert({"cid":cid,"username":username,"vote_num":votes,"date":timestamp})
+    db.votes.insert({"cid": cid, "username": username, "vote_num": votes, "date": timestamp})
     # 记录日志
     current_app.logger.info(
         "admin add vote: admin username:" + str(get_jwt_identity()) + "competitor cid+:"

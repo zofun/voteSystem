@@ -1,5 +1,4 @@
 # coding=utf-8
-import time
 
 from vote import db
 from vote import redis_conn
@@ -14,19 +13,19 @@ def load_rank_to_redis():
     """
     competitors = db.competitors.find()
     for c in competitors:
-        if int(c['state']) ==COMPETITOR_STATE_JOIN:
+        if int(c['state']) == COMPETITOR_STATE_JOIN:
             # 只将处于参赛状态的参赛者加入的redis的zset中，做排行处理
-            last_vote_infos=db.votes.find({"cid":c['cid']}).sort([("date",-1)]).limit(1)
+            last_vote_infos = db.votes.find({"cid": c['cid']}).sort([("date", -1)]).limit(1)
 
-            vote_num=vote_num=int(c['vote_num'])
+            vote_num = vote_num = int(c['vote_num'])
 
-            timestamp=0
-            if last_vote_infos.count()==0:
-                timestamp=0
+            timestamp = 0
+            if last_vote_infos.count() == 0:
+                timestamp = 1111111111111111
             else:
-                timestamp=last_vote_infos[0]["date"]
+                timestamp = last_vote_infos[0]["date"]
             # 低8位是时间错，其余是票数
-            score = vote_num* 100000000 + timestamp % 100000000
+            score = vote_num * 100000000 + timestamp % 100000000
             redis_conn.zadd(REDIS_RANKING_LIST_KEY, {c['cid']: score})
 
 
@@ -38,9 +37,9 @@ def load_vote_info_to_redis(cid):
     votes = db.votes.find({"cid": cid})
     for vote in votes:
         # 做累加
-        vote_num=redis_conn.get(vote['username']+REDIS_SPLIT+cid)
-        if vote_num is not None:
-            redis_conn.set(vote['username']+REDIS_SPLIT+cid, vote['vote_num']+int(vote_num))
+        vote_num = redis_conn.get(vote['username'] + REDIS_SPLIT + cid)
+        if vote_num is None:
+            vote_num = 0
+        redis_conn.set(vote['username'] + REDIS_SPLIT + cid, int(vote['vote_num']) + int(vote_num))
         # 设置过期时间
         redis_conn.expire(vote['username'] + REDIS_SPLIT + cid, REDIS_KEY_EXPIRE_VOTE_SET)
-
