@@ -38,7 +38,7 @@ def register():
     if not username or not password:
         # 验证表达数据的完整性
         return jsonify({'code': PARAMETER_ERROR, 'msg': '数据不完整'}), 200
-    user = {"username": username, "password": password, "role": "admin"}
+    user = {"username": username, "password": password, "role": "admin","vote":N}
     try:
         db.users.insert_one(user)
     except pymongo.errors.DuplicateKeyError:

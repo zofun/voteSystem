@@ -1,4 +1,5 @@
 # coding=utf-8
+import datetime
 import json
 import time
 
@@ -97,10 +98,24 @@ def add_vote_to_competitor():
     cid = request.json.get('cid', None)
     votes = request.json.get('votes', None)
     # 首先修改redis中的信息
-    redis_conn.zincrby(REDIS_RANKING_LIST_KEY, votes, cid)
+    # 更新分值，更新zset排行榜。（票数）+（低8位的时间戳）
+    old_score = redis_conn.zscore(REDIS_RANKING_LIST_KEY, cid)
+    if old_score is None:
+        old_score = 0
+    # 取出的旧的分数
+    old_vote = old_score / 100000000
+    # 获取当前微级时间戳
+    timestamp = int(round(time.time() * 1000000))
+    # 拼接得到新的score
+    new_socre = (old_vote + votes) * 100000000 + timestamp % 100000000
+    # 设置或更新
+    redis_conn.zadd(REDIS_RANKING_LIST_KEY, new_socre, cid)
+
     db.competitors.update({"cid": cid}, {"$inc": {"vote_num": int(votes)}})
     # 将本次管理员加票的信息存放到votes集合中
-    db.votes.insert({"cid":cid,"username":username,"vote_num":votes,"date": time.time()})
+    # data直接存时间戳
+    timestamp = int(round(time.time() * 1000000))
+    db.votes.insert({"cid":cid,"username":username,"vote_num":votes,"date":timestamp})
     # 记录日志
     current_app.logger.info(
         "admin add vote: admin username:" + str(get_jwt_identity()) + "competitor cid+:"
