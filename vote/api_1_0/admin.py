@@ -102,11 +102,11 @@ def add_vote_to_competitor():
     if old_score is None:
         old_score = 0
     # 取出的旧的分数
-    old_vote = old_score / 100000000
-    # 获取当前微级时间戳
+    old_vote = int(old_score / 100000000)
+    # 获取当前微秒级时间戳
     timestamp = int(round(time.time() * 1000000))
     # 拼接得到新的score
-    new_socre = (old_vote + votes) * 100000000 + timestamp % 100000000
+    new_socre = (old_vote + int(votes)) * 100000000 + (100000000 - timestamp % 100000000)
     # 设置或更新
     redis_conn.zadd(REDIS_RANKING_LIST_KEY, {cid: new_socre})
 

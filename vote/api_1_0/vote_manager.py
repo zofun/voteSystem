@@ -36,15 +36,14 @@ def vote(cid):
         old_score = redis_conn.zscore(REDIS_RANKING_LIST_KEY, cid)
         if old_score is None:
             old_score = 0
-        # 取出的旧的分数
-        old_vote = old_score / 100000000
+        # 取出的旧的票数
+        old_vote = int(old_score / 100000000)
         # 获取当前微级时间戳
         timestamp = int(round(time.time() * 1000000))
         # 拼接得到新的score
-
-        new_socre = (old_vote + 1) * 100000000 + timestamp % 100000000
+        new_score = (old_vote + 1) * 100000000 + (100000000 - timestamp % 100000000)
         # 设置或更新zset
-        redis_conn.zadd(REDIS_RANKING_LIST_KEY, {cid: new_socre})
+        redis_conn.zadd(REDIS_RANKING_LIST_KEY, {cid: new_score})
         # 更新redis中的选票信息
         if vote_num is None:
             vote_num = 0
@@ -94,7 +93,12 @@ def get_ranking_list():
         dict = json.loads(competitor_info)
         rank += 1
         dict['rank'] = rank
-        dict['vote_num'] = int(redis_conn.zscore(REDIS_RANKING_LIST_KEY, cid) / 100000000)
+        score = redis_conn.zscore(REDIS_RANKING_LIST_KEY, cid)
+        if score is None:
+            score = 0
+            # 取出的旧的分数
+        dict['vote_num'] = int(int(score) / 100000000)
+
         data.append(dict)
     res_json['data'] = data
     res_json['code'] = 0

@@ -16,17 +16,12 @@ def load_rank_to_redis():
         if int(c['state']) == COMPETITOR_STATE_JOIN:
             # 只将处于参赛状态的参赛者加入的redis的zset中，做排行处理
             last_vote_infos = db.votes.find({"cid": c['cid']}).sort([("date", -1)]).limit(1)
-
-            vote_num = vote_num = int(c['vote_num'])
-
-            timestamp = 0
-            if last_vote_infos.count() == 0:
-                timestamp = 1111111111111111
-            else:
-                timestamp = last_vote_infos[0]["date"]
-            # 低8位是时间错，其余是票数
-            score = vote_num * 100000000 + timestamp % 100000000
-            redis_conn.zadd(REDIS_RANKING_LIST_KEY, {c['cid']: score})
+            vote_num = int(c['vote_num'])
+            if last_vote_infos.count() != 0:
+                # 低8位是时间戳，其余是票数
+                timestamp = int(last_vote_infos[0]["date"])
+                score = vote_num * 100000000 + (100000000 - timestamp % 100000000)
+                redis_conn.zadd(REDIS_RANKING_LIST_KEY, {c['cid']: score})
 
 
 def load_vote_info_to_redis(cid):
