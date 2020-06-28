@@ -11,6 +11,7 @@ from flask_jwt_extended import (
 from vote import redis_conn, db
 from vote.api_1_0 import api
 from vote.constants import *
+from vote.utils import zset_score_calculate
 
 
 @api.route('/change_competitor_state', methods=['POST'])
@@ -29,27 +30,18 @@ def change_competitor_state():
     if competitor is None:
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '无效的cid'}), 200
     competitor['state'] = new_state
-    db.competitors.update({"cid": cid}, {"$set": {"state": new_state}})
+    result=db.competitors.update({"cid": cid}, {"$set": {"state": new_state}})
+    if result[u'nModified']==0:
+        return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     # 更新缓存
     if COMPETITOR_STATE_JOIN == int(new_state):
         # 如果更新为参赛状态，那么加入redis排行榜（zset）中
         # 从mongo查询出当天该参赛者的票数，并根据规则计算score
 
-        # 从数据库中拿到该参赛者的选票信息
-        vote_info=db.competitor_vote_info.find_one({"cid":cid,"day_of_week":day_of_week})
-        # 拿到该参赛者最近一张选票
-        last_vote_infos = db.votes.find({"cid": cid}).sort([("date", -1)]).limit(1)
-        if last_vote_infos.count() != 0:
-            timestamp = int(last_vote_infos[0]["date"])
-            score = vote_info['vote_num'] * 100000 + (100000 - timestamp % 100000)
-            redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {cid: score})
-        else:
-            redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {cid: 0})
-
-        #redis_conn.zadd(REDIS_RANKING_LIST_KEY, {competitor['cid']: competitor['vote_num']})
-    else:
-        # 否则从redis排行榜中移除
-        redis_conn.zrem(REDIS_RANKING_LIST_KEY+str(day_of_week), competitor['cid'])
+        vote_info = db.competitor_vote_info.find_one({"cid": cid, "day_of_week": day_of_week})
+        timestamp = int(vote_info["date"])
+        score = vote_info['vote_num'] * 100000 + (100000 - timestamp % 100000)
+        redis_conn.zadd(REDIS_RANKING_LIST_KEY + str(day_of_week), {cid: score})
     # 记录日志
     current_app.logger.info(
         "change competitor state:admin username:" + str(get_jwt_identity()) + "cid:" + cid + " new state" + new_state)
@@ -79,7 +71,6 @@ def change_competitor_info():
         competitor['nickname'] = nickname
     if name is not None:
         competitor['name'] = name
-
     # 将参赛者信息同步到数据库中
     try:
         db.competitors.update({"cid": cid}, competitor)
@@ -90,10 +81,7 @@ def change_competitor_info():
         {'name': competitor['name'], 'nickname': competitor['nickname'], 'tel': competitor['tel'],
          "cid": competitor['cid']},
         ensure_ascii=False)
-
-    redis_conn.set(competitor['cid'], json_str)
-    # 设置过期时间
-    redis_conn.expire(competitor['cid'], REDIS_KEY_EXPIRE_COMPETITOR_INFO)
+    redis_conn.setex(competitor['cid'],REDIS_KEY_EXPIRE_COMPETITOR_INFO, json_str)
     # 记录日志
     current_app.logger.info(
         "admin change competitor info: admin username:" + str(get_jwt_identity())
@@ -113,24 +101,14 @@ def add_vote_to_competitor():
     cid = request.json.get('cid', None)
     votes = request.json.get('votes', None)
     # 首先修改redis中的信息
-    # 更新分值，更新zset排行榜。（票数）+（低5位的时间戳）
-    old_score = redis_conn.zscore(REDIS_RANKING_LIST_KEY+str(day_of_week), cid)
-    if old_score is None:
-        old_score = 0
-    # 取出的旧的分数
-    old_vote = int(old_score / 100000)
-    # 获取当前秒级时间戳
-    timestamp = int(time.time())
-    # 拼接得到新的score
-    new_socre = (old_vote + int(votes)) * 100000 + (100000 - timestamp % 100000)
-    # 设置或更新
-    redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {cid: new_socre})
+    new_score=zset_score_calculate.get_score(day_of_week,cid,votes)
+    redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {cid: new_score})
     day_of_week = datetime.now().isoweekday()
-    db.competitor_vote_info.update({"cid":cid,"day_of_week":day_of_week},{"$inc":{"vote_num":int(votes)}})
-    # 将本次管理员加票的信息存放到votes集合中
     # data直接存时间戳
     timestamp = int(time.time())
-    db.votes.insert({"cid": cid, "username": username, "vote_num": votes, "date": timestamp})
+    db.competitor_vote_info.update({"cid":cid,"day_of_week":day_of_week},{"$inc":{"vote_num":int(votes)},"$set":{"date":timestamp}})
+    # 将本次管理员加票的信息存放到votes集合中
+    db.votes.insert({"cid": cid, "username": username, "vote_num": int(votes), "date": timestamp})
     # 记录日志
     current_app.logger.info(
         "admin add vote: admin username:" + str(get_jwt_identity()) + "competitor cid+:"

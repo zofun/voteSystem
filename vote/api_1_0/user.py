@@ -61,7 +61,6 @@ def apply():
     # 利用参赛者总数来生成一个6位的id
     c = db.competitors.find().count()
     cid = str(c + 1).zfill(6)
-
     competitor = {"cid": cid, "name": name, "nickname": nickname, "tel": tel,
                   "state": COMPETITOR_STATE_JOIN}
     try:

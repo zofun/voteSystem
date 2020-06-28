@@ -13,20 +13,18 @@ def load_rank_to_redis(day_of_week):
     competitors = db.competitors.find()
     for c in competitors:
         if int(c['state']) == COMPETITOR_STATE_JOIN:
-            # 只将处于参赛状态的参赛者加入的redis的zset中，做排行处理
-            last_vote_infos = db.votes.find({"cid": c['cid']}).sort([("date", -1)]).limit(1)
-            vote_info = db.competitor_vote_info.find_one({"cid": c['cid'], "day_of_week": day_of_week})
-            if vote_info is None:
-                vote_num=0
+            # 获取它的票数和最近一次获得投票的时间
+            last_vote_info = db.competitor_vote_info.find_one({"cid": c['cid'],"day_of_week":day_of_week})
+            if last_vote_info is None:
+                redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {c['cid']: 0})
             else:
-                vote_num = int(vote_info['vote_num'])
-            if last_vote_infos.count() != 0:
+                vote_num = int(last_vote_info['vote_num'])
                 # 低8位是时间戳，其余是票数
-                timestamp = int(last_vote_infos[0]["date"])
+                timestamp = int(last_vote_info["date"])
                 score = vote_num * 100000 + (100000 - timestamp % 100000)
                 redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {c['cid']: score})
-            else:
-                redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {c['cid']: 0})
+
+
 
 
 def load_vote_info_to_redis(cid):

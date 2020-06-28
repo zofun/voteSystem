@@ -27,6 +27,8 @@ NO_PERMISSION = 3
 NOT_LOGIN_IN = 4
 # 登录失败
 LOGIN_FAILED = 5
+# 系统错误
+ERROR=6
 
 # 参赛者状态
 # 参赛状态

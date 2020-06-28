@@ -12,19 +12,22 @@ from vote.constants import *
 
 @api.route('/search', methods=['GET'])
 def search():
-    cid = request.args.get('cid', '')
-    nickname = request.args.get('nickname', '')
-    name = request.args.get('name', '')
-    tel = request.args.get('tel', '')
+    cid = request.args.get('cid', None)
+    nickname = request.args.get('nickname', None)
+    name = request.args.get('name', None)
+    tel = request.args.get('tel', None)
     day_of_week = datetime.now().isoweekday()
+    w=[]
+    if cid is not None and cid!="":
+        w.append({"cid":re.compile(cid)})
+    if tel is not None and tel!="":
+        w.append({"tel":re.compile(tel)})
+    if name is not None and name!="":
+        w.append({"name":re.compile(name)})
+    if nickname is not None and nickname!="":
+        w.append({"nickname":re.compile(nickname)})
 
-    search = {'$or': [
-        {'name': re.compile(name)},
-        {'tel': re.compile(tel)},
-        {'nickname': re.compile(nickname)},
-        {'cid': re.compile(cid)}
-    ]
-    }
+    search = {'$or': w}
     competitors = db.competitors.find(search)
     res_json = {'count': competitors.count(), 'code': 0}
     data = []
