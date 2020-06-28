@@ -13,11 +13,15 @@ def reset():
     result=db.users.update_many({"_id":{"$exists":True}},{"$set":{"vote":10}})
     print "重置用户拥有选票，一共影响的文档的数量为：%d"%result.modified_count
 
+    day_of_week=datetime.now().isoweekday()
+
     # 为每个参赛者维护一个当日选票记录
     competitors=db.competitors.find()
     for competitor in  competitors:
         db.competitor_vote_info.insert({"cid":competitor['cid'],"day_of_week":day_of_week,"vote_num":0})
     print "当日选票记录建立完毕"
+
+
 
 if __name__=='__main__':
     reset()
