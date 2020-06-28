@@ -20,7 +20,7 @@ def load_rank_to_redis():
             if last_vote_infos.count() != 0:
                 # 低8位是时间戳，其余是票数
                 timestamp = int(last_vote_infos[0]["date"])
-                score = vote_num * 100000000 + (100000000 - timestamp % 100000000)
+                score = vote_num * 100000 + (100000 - timestamp % 100000)
                 redis_conn.zadd(REDIS_RANKING_LIST_KEY, {c['cid']: score})
             else:
                 redis_conn.zadd(REDIS_RANKING_LIST_KEY, {c['cid']:0})

@@ -102,18 +102,18 @@ def add_vote_to_competitor():
     if old_score is None:
         old_score = 0
     # 取出的旧的分数
-    old_vote = int(old_score / 100000000)
-    # 获取当前微秒级时间戳
-    timestamp = int(round(time.time() * 1000000))
+    old_vote = int(old_score / 100000)
+    # 获取当前秒级时间戳
+    timestamp = int(time.time() )
     # 拼接得到新的score
-    new_socre = (old_vote + int(votes)) * 100000000 + (100000000 - timestamp % 100000000)
+    new_socre = (old_vote + int(votes)) * 100000 + (100000 - timestamp % 100000)
     # 设置或更新
     redis_conn.zadd(REDIS_RANKING_LIST_KEY, {cid: new_socre})
 
     db.competitors.update({"cid": cid}, {"$inc": {"vote_num": int(votes)}})
     # 将本次管理员加票的信息存放到votes集合中
     # data直接存时间戳
-    timestamp = int(round(time.time() * 1000000))
+    timestamp = int(time.time() )
     db.votes.insert({"cid": cid, "username": username, "vote_num": votes, "date": timestamp})
     # 记录日志
     current_app.logger.info(
