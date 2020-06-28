@@ -35,9 +35,9 @@ def vote(cid):
     vote_num = redis_conn.get(identity + REDIS_SPLIT + cid)
     # 给该用户的投票还没达到阈值
     if vote_num is None or int(vote_num) < M:
-        new_score=zset_score_calculate.get_score(day_of_week,cid,1)
+        new_score = zset_score_calculate.get_score(day_of_week, cid, 1)
         # 设置或更新zset
-        redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {cid: new_score})
+        redis_conn.zadd(REDIS_RANKING_LIST_KEY + str(day_of_week), {cid: new_score})
         # 更新redis中的选票信息
         if vote_num is None:
             vote_num = 0
@@ -45,7 +45,8 @@ def vote(cid):
         # 修改数据库中参赛者的信息
         # data直接存时间戳
         timestamp = int(time.time())
-        db.competitor_vote_info.update({"cid": cid, "day_of_week": day_of_week}, {"$inc": {"vote_num": 1},"$set":{"date":timestamp}})
+        db.competitor_vote_info.update({"cid": cid, "day_of_week": day_of_week},
+                                       {"$inc": {"vote_num": 1}, "$set": {"date": timestamp}})
         db.votes.insert({"cid": cid, "username": identity, "vote_num": 1, "date": timestamp})
         # 更新用户所拥有的选票
         db.users.update({"username": identity}, {"$inc": {"vote": -1}})
@@ -59,16 +60,17 @@ def vote(cid):
 def get_ranking_list():
     page = request.args.get('page')
     limit = request.args.get('limit')
-    day_of_week = request.args.get('day_of_week',datetime.now().isoweekday())
+    day_of_week = request.args.get('day_of_week', datetime.now().isoweekday())
     begin = (int(page) - 1) * int(limit)
     # 首先判断redis中zset是否存在，如果不存在就查询数据库，将数据导入redis的zset中
-    flag = redis_conn.exists(REDIS_RANKING_LIST_KEY+str(day_of_week))
+    flag = redis_conn.exists(REDIS_RANKING_LIST_KEY + str(day_of_week))
     if flag != 1:
         # redis中还不存在zset排行榜则进行导入
         load_data_util.load_rank_to_redis(day_of_week)
-    rank_list = redis_conn.zrange(REDIS_RANKING_LIST_KEY+str(day_of_week), start=begin, end=begin + int(limit) - 1, desc=True)
+    rank_list = redis_conn.zrange(REDIS_RANKING_LIST_KEY + str(day_of_week), start=begin, end=begin + int(limit) - 1,
+                                  desc=True)
     # 返回的json中应该包含参赛者总数
-    res_json = {'count': redis_conn.zcard(REDIS_RANKING_LIST_KEY+str(day_of_week))}
+    res_json = {'count': redis_conn.zcard(REDIS_RANKING_LIST_KEY + str(day_of_week))}
     data = []
     # 计算排名
     rank = begin
@@ -83,12 +85,11 @@ def get_ranking_list():
                 {'name': competitor['name'], 'nickname': competitor['nickname']
                     , 'tel': competitor['tel'], "cid": competitor['cid']}
                 , ensure_ascii=False)
-            redis_conn.set(competitor['cid'], competitor_info)
-            redis_conn.expire(competitor['cid'], REDIS_KEY_EXPIRE_COMPETITOR_INFO)
+            redis_conn.setex(competitor['cid'], REDIS_KEY_EXPIRE_COMPETITOR_INFO, competitor_info)
         dict = json.loads(competitor_info)
         rank += 1
         dict['rank'] = rank
-        score = redis_conn.zscore(REDIS_RANKING_LIST_KEY+str(day_of_week), cid)
+        score = redis_conn.zscore(REDIS_RANKING_LIST_KEY + str(day_of_week), cid)
         if score is None:
             score = 0
         # 从zset score中计算出票数
@@ -97,4 +98,3 @@ def get_ranking_list():
     res_json['data'] = data
     res_json['code'] = 0
     return json.dumps(res_json, ensure_ascii=False), 200
-

@@ -68,6 +68,6 @@ def apply():
     except pymongo.errors.DuplicateKeyError:
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '电话号重复'}), 200
     # 将新报名的参赛者cid加入到排行榜
-    redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {cid: 0})
+    redis_conn.zadd(REDIS_RANKING_LIST_KEY + str(day_of_week), {cid: 0})
     current_app.logger.info("apply:" + str(competitor))
     return jsonify({'code': SUCCESS, 'msg': '报名成功', 'cid': cid}), 200

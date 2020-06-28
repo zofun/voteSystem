@@ -17,30 +17,30 @@ def search():
     name = request.args.get('name', None)
     tel = request.args.get('tel', None)
     day_of_week = datetime.now().isoweekday()
-    w=[]
-    if cid is not None and cid!="":
-        w.append({"cid":re.compile(cid)})
-    if tel is not None and tel!="":
-        w.append({"tel":re.compile(tel)})
-    if name is not None and name!="":
-        w.append({"name":re.compile(name)})
-    if nickname is not None and nickname!="":
-        w.append({"nickname":re.compile(nickname)})
+    w = []
+    if cid is not None and cid != "":
+        w.append({"cid": re.compile(cid)})
+    if tel is not None and tel != "":
+        w.append({"tel": re.compile(tel)})
+    if name is not None and name != "":
+        w.append({"name": re.compile(name)})
+    if nickname is not None and nickname != "":
+        w.append({"nickname": re.compile(nickname)})
 
     search = {'$or': w}
     competitors = db.competitors.find(search)
     res_json = {'count': competitors.count(), 'code': 0}
     data = []
-    competitor_num = redis_conn.zcard(REDIS_RANKING_LIST_KEY)
+    competitor_num = redis_conn.zcard(REDIS_RANKING_LIST_KEY + str(day_of_week))
     for item in competitors:
         # 从redis,因为redis zset是从小到大进行排序的，因此这里需要计算一下分数从大到小的排名
-        index = redis_conn.zrank(REDIS_RANKING_LIST_KEY+str(day_of_week), item['cid'])
+        index = redis_conn.zrank(REDIS_RANKING_LIST_KEY + str(day_of_week), item['cid'])
         if index is not None:
             rank = competitor_num - index
         else:
             rank = -1  # 如果已经退赛，则排名使用-1来表示
 
-        vote_info=db.competitor_vote_info.find_one({"cid":item['cid'],"day_of_week":day_of_week})
+        vote_info = db.competitor_vote_info.find_one({"cid": item['cid'], "day_of_week": day_of_week})
         data.append({'cid': item['cid'], 'name': item['name']
                         , 'nickname': item['nickname'], 'tel': item['tel']
                         , 'vote_num': vote_info['vote_num'], 'rank': rank})

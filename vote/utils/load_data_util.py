@@ -38,6 +38,4 @@ def load_vote_info_to_redis(cid):
         vote_num = redis_conn.get(vote['username'] + REDIS_SPLIT + cid)
         if vote_num is None:
             vote_num = 0
-        redis_conn.set(vote['username'] + REDIS_SPLIT + cid, int(vote['vote_num']) + int(vote_num))
-        # 设置过期时间
-        redis_conn.expire(vote['username'] + REDIS_SPLIT + cid, REDIS_KEY_EXPIRE_VOTE_SET)
+        redis_conn.setex(vote['username'] + REDIS_SPLIT + cid,REDIS_KEY_EXPIRE_VOTE_SET, int(vote['vote_num']) + int(vote_num))
