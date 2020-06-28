@@ -22,6 +22,8 @@ def load_rank_to_redis():
                 timestamp = int(last_vote_infos[0]["date"])
                 score = vote_num * 100000000 + (100000000 - timestamp % 100000000)
                 redis_conn.zadd(REDIS_RANKING_LIST_KEY, {c['cid']: score})
+            else:
+                redis_conn.zadd(REDIS_RANKING_LIST_KEY, {c['cid']:0})
 
 
 def load_vote_info_to_redis(cid):
