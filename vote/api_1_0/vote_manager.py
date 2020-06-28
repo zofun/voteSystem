@@ -10,6 +10,7 @@ from vote import redis_conn
 from vote.api_1_0 import api
 from vote.constants import *
 from vote.utils import load_data_util
+from datetime import datetime
 
 
 @api.route('/vote/<cid>')
@@ -49,9 +50,11 @@ def vote(cid):
             vote_num = 0
         redis_conn.set(identity + REDIS_SPLIT + cid, int(vote_num) + 1)
         # 修改数据库中参赛者的信息
-        db.competitors.update({"cid": cid}, {"$inc": {"vote_num": 1}})
+        day_of_week = datetime.now().isoweekday()
+        db.competitor_vote_info.update({"cid": cid, "day_of_week": day_of_week}, {"$inc": {"vote_num": 1}})
+
         # data直接存时间戳
-        timestamp = int(time.time() )
+        timestamp = int(time.time())
         db.votes.insert({"cid": cid, "username": identity, "vote_num": 1, "date": timestamp})
         # 更新用户所拥有的选票
         db.users.update({"username": identity}, {"$inc": {"vote": -1}})
@@ -70,7 +73,8 @@ def get_ranking_list():
     flag = redis_conn.exists(REDIS_RANKING_LIST_KEY)
     if flag != 1:
         # redis中还不存在zset排行榜则进行导入
-        load_data_util.load_rank_to_redis()
+        day_of_week = datetime.now().isoweekday()
+        load_data_util.load_rank_to_redis(day_of_week)
     rank_list = redis_conn.zrange(REDIS_RANKING_LIST_KEY, start=begin, end=begin + int(limit) - 1, desc=True)
     # 返回的json中应该包含参赛者总数
     res_json = {'count': redis_conn.zcard(REDIS_RANKING_LIST_KEY)}
@@ -86,7 +90,7 @@ def get_ranking_list():
             # 存入redis中
             competitor_info = json.dumps(
                 {'name': competitor['name'], 'nickname': competitor['nickname']
-                    , 'tel': competitor['tel'], 'vote_num': competitor['vote_num'], "cid": competitor['cid']}
+                    , 'tel': competitor['tel'], "cid": competitor['cid']}
                 , ensure_ascii=False)
             redis_conn.set(competitor['cid'], competitor_info)
             redis_conn.expire(competitor['cid'], REDIS_KEY_EXPIRE_COMPETITOR_INFO)
@@ -103,3 +107,8 @@ def get_ranking_list():
     res_json['data'] = data
     res_json['code'] = 0
     return json.dumps(res_json, ensure_ascii=False), 200
+
+
+@api.route("/get_historical_rank_list",methods=['GET'])
+def get_historical_rank_list():
+    return "ok"

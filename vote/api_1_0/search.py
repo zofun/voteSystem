@@ -1,6 +1,7 @@
 # coding=utf-8
 import json
 import re
+from datetime import datetime
 
 from flask import request
 
@@ -34,8 +35,10 @@ def search():
             rank = competitor_num - index
         else:
             rank = -1  # 如果已经退赛，则排名使用-1来表示
+        day_of_week=datetime.now().isoweekday()
+        vote_info=db.competitor_vote_info.find_one({"cid":item['cid'],"day_of_week":day_of_week})
         data.append({'cid': item['cid'], 'name': item['name']
                         , 'nickname': item['nickname'], 'tel': item['tel']
-                        , 'vote_num': item['vote_num'], 'rank': rank})
+                        , 'vote_num': vote_info['vote_num'], 'rank': rank})
     res_json['data'] = data
     return json.dumps(res_json, ensure_ascii=False), 200
