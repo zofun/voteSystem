@@ -1,5 +1,6 @@
 # coding=utf-8
 import json
+from datetime import datetime
 
 import pymongo
 from flask import jsonify, current_app, request
@@ -54,6 +55,7 @@ def apply():
     name = request.json.get('name', None)
     nickname = request.json.get('nickname', None)
     tel = request.json.get('tel', None)
+    day_of_week = datetime.now().isoweekday()
     if not name or not nickname or not tel:
         return jsonify({'code': PARAMETER_ERROR, 'msg': '请求参数错误'}), 200
     # 利用参赛者总数来生成一个6位的id
@@ -67,6 +69,6 @@ def apply():
     except pymongo.errors.DuplicateKeyError:
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '电话号重复'}), 200
     # 将新报名的参赛者cid加入到排行榜
-    redis_conn.zadd(REDIS_RANKING_LIST_KEY, {cid: 0})
+    redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {cid: 0})
     current_app.logger.info("apply:" + str(competitor))
     return jsonify({'code': SUCCESS, 'msg': '报名成功', 'cid': cid}), 200

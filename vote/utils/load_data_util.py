@@ -6,7 +6,7 @@ from vote.constants import *
 
 
 def load_rank_to_redis(day_of_week):
-    """查询数据库，将处于参赛状态的参赛者<cid,vote_num>加载到redis的zset中
+    """查询数据库，将处于参赛状态的参赛者<cid,vote_num>加载到redis的zset中，
     :param day_of_week: 按照哪一天的票数进行排行
     :return:
     """

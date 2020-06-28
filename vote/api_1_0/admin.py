@@ -18,6 +18,7 @@ from vote.constants import *
 def change_competitor_state():
     # 获取当前用户的身份
     claims = get_jwt_claims()
+    day_of_week = datetime.now().isoweekday()
     # 只有为管理员身份的时候才能够修改参赛者的状态
     if 'admin' != claims:
         return jsonify({'code': NO_PERMISSION, 'msg': '权限不够'}), 200
@@ -33,7 +34,7 @@ def change_competitor_state():
     if COMPETITOR_STATE_JOIN == int(new_state):
         # 如果更新为参赛状态，那么加入redis排行榜（zset）中
         # 从mongo查询出当天该参赛者的票数，并根据规则计算score
-        day_of_week=datetime.now().isoweekday()
+
         # 从数据库中拿到该参赛者的选票信息
         vote_info=db.competitor_vote_info.find_one({"cid":cid,"day_of_week":day_of_week})
         # 拿到该参赛者最近一张选票
@@ -41,14 +42,14 @@ def change_competitor_state():
         if last_vote_infos.count() != 0:
             timestamp = int(last_vote_infos[0]["date"])
             score = vote_info['vote_num'] * 100000 + (100000 - timestamp % 100000)
-            redis_conn.zadd(REDIS_RANKING_LIST_KEY, {cid: score})
+            redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {cid: score})
         else:
-            redis_conn.zadd(REDIS_RANKING_LIST_KEY, {cid: 0})
+            redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {cid: 0})
 
         #redis_conn.zadd(REDIS_RANKING_LIST_KEY, {competitor['cid']: competitor['vote_num']})
     else:
         # 否则从redis排行榜中移除
-        redis_conn.zrem(REDIS_RANKING_LIST_KEY, competitor['cid'])
+        redis_conn.zrem(REDIS_RANKING_LIST_KEY+str(day_of_week), competitor['cid'])
     # 记录日志
     current_app.logger.info(
         "change competitor state:admin username:" + str(get_jwt_identity()) + "cid:" + cid + " new state" + new_state)
@@ -105,14 +106,15 @@ def change_competitor_info():
 def add_vote_to_competitor():
     username = get_jwt_identity()
     claims = get_jwt_claims()
+    day_of_week = datetime.now().isoweekday()
     # 只有拥有管理员权限的人才能够加票
     if 'admin' != claims:
         return jsonify({'code': NO_PERMISSION, 'msg': '权限不够'}), 200
     cid = request.json.get('cid', None)
     votes = request.json.get('votes', None)
     # 首先修改redis中的信息
-    # 更新分值，更新zset排行榜。（票数）+（低8位的时间戳）
-    old_score = redis_conn.zscore(REDIS_RANKING_LIST_KEY, cid)
+    # 更新分值，更新zset排行榜。（票数）+（低5位的时间戳）
+    old_score = redis_conn.zscore(REDIS_RANKING_LIST_KEY+str(day_of_week), cid)
     if old_score is None:
         old_score = 0
     # 取出的旧的分数
@@ -122,7 +124,7 @@ def add_vote_to_competitor():
     # 拼接得到新的score
     new_socre = (old_vote + int(votes)) * 100000 + (100000 - timestamp % 100000)
     # 设置或更新
-    redis_conn.zadd(REDIS_RANKING_LIST_KEY, {cid: new_socre})
+    redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {cid: new_socre})
     day_of_week = datetime.now().isoweekday()
     db.competitor_vote_info.update({"cid":cid,"day_of_week":day_of_week},{"$inc":{"vote_num":int(votes)}})
     # 将本次管理员加票的信息存放到votes集合中

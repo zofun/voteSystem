@@ -17,6 +17,7 @@ from datetime import datetime
 @jwt_required
 def vote(cid):
     competitor_info = redis_conn.get(cid)
+    day_of_week = datetime.now().isoweekday()
     if competitor_info is None:
         return jsonify({'code': ILLEGAL_PARAMETER, "msg": '没有该参赛者'}), 200
     identity = get_jwt_identity()
@@ -34,7 +35,7 @@ def vote(cid):
     # 给该用户的投票还没达到阈值
     if vote_num is None or int(vote_num) < M:
         # 更新分值，更新zset排行榜。（票数）+（低8位的时间戳）
-        old_score = redis_conn.zscore(REDIS_RANKING_LIST_KEY, cid)
+        old_score = redis_conn.zscore(REDIS_RANKING_LIST_KEY+str(day_of_week), cid)
         if old_score is None:
             old_score = 0
         # 取出的旧的票数
@@ -44,13 +45,13 @@ def vote(cid):
         # 拼接得到新的score
         new_score = (old_vote + 1) * 100000 + (100000 - timestamp % 100000)
         # 设置或更新zset
-        redis_conn.zadd(REDIS_RANKING_LIST_KEY, {cid: new_score})
+        redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {cid: new_score})
         # 更新redis中的选票信息
         if vote_num is None:
             vote_num = 0
         redis_conn.set(identity + REDIS_SPLIT + cid, int(vote_num) + 1)
         # 修改数据库中参赛者的信息
-        day_of_week = datetime.now().isoweekday()
+
         db.competitor_vote_info.update({"cid": cid, "day_of_week": day_of_week}, {"$inc": {"vote_num": 1}})
 
         # data直接存时间戳
