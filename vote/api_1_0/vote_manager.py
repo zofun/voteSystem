@@ -70,14 +70,15 @@ def get_ranking_list():
     limit = request.args.get('limit')
     begin = (int(page) - 1) * int(limit)
     # 首先判断redis中zset是否存在，如果不存在就查询数据库，将数据导入redis的zset中
-    flag = redis_conn.exists(REDIS_RANKING_LIST_KEY)
+    day_of_week = datetime.now().isoweekday()
+    flag = redis_conn.exists(REDIS_RANKING_LIST_KEY+str(day_of_week))
     if flag != 1:
         # redis中还不存在zset排行榜则进行导入
         day_of_week = datetime.now().isoweekday()
         load_data_util.load_rank_to_redis(day_of_week)
-    rank_list = redis_conn.zrange(REDIS_RANKING_LIST_KEY, start=begin, end=begin + int(limit) - 1, desc=True)
+    rank_list = redis_conn.zrange(REDIS_RANKING_LIST_KEY+str(day_of_week), start=begin, end=begin + int(limit) - 1, desc=True)
     # 返回的json中应该包含参赛者总数
-    res_json = {'count': redis_conn.zcard(REDIS_RANKING_LIST_KEY)}
+    res_json = {'count': redis_conn.zcard(REDIS_RANKING_LIST_KEY+str(day_of_week))}
     data = []
     # 计算排名
     rank = begin
@@ -97,7 +98,7 @@ def get_ranking_list():
         dict = json.loads(competitor_info)
         rank += 1
         dict['rank'] = rank
-        score = redis_conn.zscore(REDIS_RANKING_LIST_KEY, cid)
+        score = redis_conn.zscore(REDIS_RANKING_LIST_KEY+str(day_of_week), cid)
         if score is None:
             score = 0
             # 取出的旧的分数
@@ -109,6 +110,46 @@ def get_ranking_list():
     return json.dumps(res_json, ensure_ascii=False), 200
 
 
-@api.route("/get_historical_rank_list",methods=['GET'])
+@api.route("/get_historical_rank_list", methods=['GET'])
 def get_historical_rank_list():
-    return "ok"
+    page = request.args.get('page')
+    limit = request.args.get('limit')
+    day_of_week = request.args.get('day_of_week')
+    begin = (int(page) - 1) * int(limit)
+    # 首先判断redis中zset是否存在，如果不存在就查询数据库，将数据导入redis的zset中
+
+    flag = redis_conn.exists(REDIS_RANKING_LIST_KEY+str(day_of_week))
+    if flag != 1:
+        load_data_util.load_rank_to_redis(day_of_week)
+    rank_list = redis_conn.zrange(REDIS_RANKING_LIST_KEY+str(day_of_week), start=begin, end=begin + int(limit) - 1, desc=True)
+    # 返回的json中应该包含参赛者总数
+    res_json = {'count': redis_conn.zcard(REDIS_RANKING_LIST_KEY+str(day_of_week))}
+    data = []
+    # 计算排名
+    rank = begin
+    for cid in rank_list:
+        # 首先尝试从redis中获取用户的详细信息，获取不到再从数据库中查询，然后存入redis
+        competitor_info = redis_conn.get(cid)
+        if competitor_info is None:
+            # redis中没查到，从数据库中查询
+            competitor = db.competitors.find_one({"cid": cid})
+            # 存入redis中
+            competitor_info = json.dumps(
+                {'name': competitor['name'], 'nickname': competitor['nickname']
+                    , 'tel': competitor['tel'], "cid": competitor['cid']}
+                , ensure_ascii=False)
+            redis_conn.set(competitor['cid'], competitor_info)
+            redis_conn.expire(competitor['cid'], REDIS_KEY_EXPIRE_COMPETITOR_INFO)
+        dict = json.loads(competitor_info)
+        rank += 1
+        dict['rank'] = rank
+        score = redis_conn.zscore(REDIS_RANKING_LIST_KEY+str(day_of_week), cid)
+        if score is None:
+            score = 0
+            # 取出的旧的分数
+        dict['vote_num'] = int(int(score) / 100000)
+
+        data.append(dict)
+    res_json['data'] = data
+    res_json['code'] = 0
+    return json.dumps(res_json, ensure_ascii=False), 200

@@ -24,9 +24,9 @@ def load_rank_to_redis(day_of_week):
                 # 低8位是时间戳，其余是票数
                 timestamp = int(last_vote_infos[0]["date"])
                 score = vote_num * 100000 + (100000 - timestamp % 100000)
-                redis_conn.zadd(REDIS_RANKING_LIST_KEY, {c['cid']: score})
+                redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {c['cid']: score})
             else:
-                redis_conn.zadd(REDIS_RANKING_LIST_KEY, {c['cid']: 0})
+                redis_conn.zadd(REDIS_RANKING_LIST_KEY+str(day_of_week), {c['cid']: 0})
 
 
 def load_vote_info_to_redis(cid):
