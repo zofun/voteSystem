@@ -42,7 +42,8 @@ def register():
     user = {"username": username, "password": password, "role": "user", "vote": N}
     try:
         db.users.insert_one(user)
-    except pymongo.errors.DuplicateKeyError:
+    except pymongo.errors.DuplicateKeyError as e:
+        current_app.logger.warning(e)
         # username 键建立了唯一索引，如果username重复，那么插入会失败，会抛出异常
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '账号已被占用'}), 200
     # 记录用户注册的日志

@@ -71,7 +71,7 @@ def get_app(config_name):
     app.config.from_object(configs[config_name])
     # 对mongoDB进行配置
     global mongo_conn
-    mongo_conn = MongoClient('mongodb://localhost:27017/')
+    mongo_conn = MongoClient(conf.MONGODB_URL)
     global db
     db = mongo_conn[conf.MONGODB_DB]
     # mongo_conn = MongoClient("mongodb://"+conf.MONGODB_USERNAME+":"+conf.MONGODB_PASSWORD+"@"+conf.MONGODB_HOST+":"+str(conf.MONGODB_PORT)+"/"+conf.MONGODB_DB)

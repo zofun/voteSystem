@@ -31,12 +31,11 @@ def search():
     competitors = db.competitors.find(search)
     res_json = {'count': competitors.count(), 'code': 0}
     data = []
-    competitor_num = redis_conn.zcard(REDIS_RANKING_LIST_KEY + str(day_of_week))
     for item in competitors:
         # 从redis,因为redis zset是从小到大进行排序的，因此这里需要计算一下分数从大到小的排名
-        index = redis_conn.zrank(REDIS_RANKING_LIST_KEY + str(day_of_week), item['cid'])
+        index = redis_conn.zrevrank(REDIS_RANKING_LIST_KEY + str(day_of_week), item['cid'])
         if index is not None:
-            rank = competitor_num - index
+            rank = index + 1
         else:
             rank = -1  # 如果已经退赛，则排名使用-1来表示
 

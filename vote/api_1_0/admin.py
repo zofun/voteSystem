@@ -30,8 +30,10 @@ def change_competitor_state():
     if competitor is None:
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '无效的cid'}), 200
     competitor['state'] = new_state
-    result = db.competitors.update({"cid": cid}, {"$set": {"state": new_state}})
-    if result[u'nModified'] == 0:
+    try:
+        result = db.competitors.update({"cid": cid}, {"$set": {"state": new_state}})
+    except Exception as e:
+        current_app.debug(e)
         return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     # 更新缓存
     if COMPETITOR_STATE_JOIN == int(new_state):
@@ -74,7 +76,8 @@ def change_competitor_info():
     # 将参赛者信息同步到数据库中
     try:
         db.competitors.update({"cid": cid}, competitor)
-    except pymongo.errors.DuplicateKeyError:
+    except pymongo.errors.DuplicateKeyError as e:
+        current_app.logger.warning(e)
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': 'tel重复'}), 200
     # 将参赛者信息的更改同步到redis
     json_str = json.dumps(
