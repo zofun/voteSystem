@@ -28,6 +28,7 @@ def search():
         w.append({"nickname": re.compile(nickname)})
 
     search = {'$or': w}
+    # todo 查询可能很多，需要进行分页
     competitors = db.competitors.find(search)
     res_json = {'count': competitors.count(), 'code': 0}
     data = []
@@ -38,7 +39,7 @@ def search():
             rank = index + 1
         else:
             rank = -1  # 如果已经退赛，则排名使用-1来表示
-
+        # todo 这里分数可以直接从zset中查询，无需查询mongo
         vote_info = db.competitor_vote_info.find_one({"cid": item['cid'], "day_of_week": day_of_week})
         data.append({'cid': item['cid'], 'name': item['name']
                         , 'nickname': item['nickname'], 'tel': item['tel']

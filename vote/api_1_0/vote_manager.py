@@ -23,15 +23,18 @@ def vote(cid):
         return jsonify({'code': ILLEGAL_PARAMETER, "msg": '没有该参赛者'}), 200
     identity = get_jwt_identity()
     # 首先判断该用户是否还有选票
+    # todo 加入缓存中
     user = db.users.find_one({"username": identity})
     if int(user['vote']) == 0:
         return jsonify({'code': SUCCESS, 'msg': '今日选票已用完'}), 200
     # 如果redis中还没有缓存该参赛者选票信息，需要首先将数据加载到redis中
+    # todo 调用榜单的时候，需要判断榜单是否已经加载
     flag = redis_conn.exists(identity + REDIS_SPLIT + cid)
     if flag != 1:
         # 加载选手的选票信息
         load_data_util.load_vote_info_to_redis(cid)
     # 拿到今天该用户给该参数者的投票数量
+    # todo 使用mongo的$inc来实现
     vote_num = redis_conn.get(identity + REDIS_SPLIT + cid)
     # 给该用户的投票还没达到阈值
     if vote_num is None or int(vote_num) < M:
@@ -67,19 +70,21 @@ def get_ranking_list():
     if flag != 1:
         # redis中还不存在zset排行榜则进行导入
         load_data_util.load_rank_to_redis(day_of_week)
+
+    # todo zrange可以添加参数，让它返回的时候携带 score ok
     rank_list = redis_conn.zrange(REDIS_RANKING_LIST_KEY + str(day_of_week), start=begin, end=begin + int(limit) - 1,
-                                  desc=True)
+                                  desc=True,withscores=True)
     # 返回的json中应该包含参赛者总数
     res_json = {'count': redis_conn.zcard(REDIS_RANKING_LIST_KEY + str(day_of_week))}
     data = []
     # 计算排名
     rank = begin
-    for cid in rank_list:
+    for item in rank_list:
         # 首先尝试从redis中获取用户的详细信息，获取不到再从数据库中查询，然后存入redis
-        competitor_info = redis_conn.get(cid)
+        competitor_info = redis_conn.get(item[0])
         if competitor_info is None:
             # redis中没查到，从数据库中查询
-            competitor = db.competitors.find_one({"cid": cid})
+            competitor = db.competitors.find_one({"cid": item[0]})
             # 存入redis中
             competitor_info = json.dumps(
                 {'name': competitor['name'], 'nickname': competitor['nickname']
@@ -89,11 +94,10 @@ def get_ranking_list():
         dict = json.loads(competitor_info)
         rank += 1
         dict['rank'] = rank
-        score = redis_conn.zscore(REDIS_RANKING_LIST_KEY + str(day_of_week), cid)
-        if score is None:
-            score = 0
+        score = item[1]
         # 从zset score中计算出票数
-        dict['vote_num'] = int(int(score) / 100000)
+        # todo /100000的操作出现较多，可以抽取成工具类 ok
+        dict['vote_num'] = zset_score_calculate.get_vote_num(score)
         data.append(dict)
     res_json['data'] = data
     res_json['code'] = 0

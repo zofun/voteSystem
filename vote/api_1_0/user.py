@@ -44,6 +44,7 @@ def register():
         return jsonify({'code': PARAMETER_ERROR, 'msg': '数据不完整'}), 200
     user = {"username": username, "password": password, "role": "user", "vote": N}
     try:
+        # todo 利用返回值判断是否插入成功，需要捕获其他异常
         db.users.insert_one(user)
     except pymongo.errors.DuplicateKeyError as e:
         current_app.logger.warning(e)
@@ -63,6 +64,7 @@ def apply():
     if not name or not nickname or not tel:
         return jsonify({'code': PARAMETER_ERROR, 'msg': '请求参数错误'}), 200
     # 使用上下文管理器来加锁，这段临界代码执行完毕后会自动释放锁
+    # todo 多进程下，如何加锁。获取不到锁如何处理？通过mongo $inc去生成cid
     with lock:
         # 利用参赛者总数来生成一个6位的id
         c = db.competitors.find().count()

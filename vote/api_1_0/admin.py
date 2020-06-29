@@ -43,6 +43,7 @@ def change_competitor_state():
         # 从mongo查询出当天该参赛者的票数，并根据规则计算score
         vote_info = db.competitor_vote_info.find_one({"cid": cid, "day_of_week": day_of_week})
         timestamp = int(vote_info["date"])
+        # todo 抽取常量
         score = vote_info['vote_num'] * 100000 + (100000 - timestamp % 100000)
         redis_conn.zadd(REDIS_RANKING_LIST_KEY + str(day_of_week), {cid: score})
     # 记录日志
@@ -76,7 +77,10 @@ def change_competitor_info():
         competitor['name'] = name
     # 将参赛者信息同步到数据库中
     try:
-        db.competitors.update({"cid": cid}, competitor)
+        # todo 通过返回值判断更新是否成功 ok
+        result=db.competitors.update({"cid": cid}, competitor)
+        if result["modified_count"]==0:
+            return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     except pymongo.errors.DuplicateKeyError as e:
         current_app.logger.warning(e)
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': 'tel重复'}), 200
@@ -105,6 +109,7 @@ def add_vote_to_competitor():
     cid = request.json.get('cid', None)
     votes = request.json.get('votes', None)
     # 首先修改redis中的信息
+    # todo 先更新mongo再更新 redis
     new_score = zset_score_calculate.get_score(day_of_week, cid, votes)
     redis_conn.zadd(REDIS_RANKING_LIST_KEY + str(day_of_week), {cid: new_score})
     day_of_week = datetime.now().isoweekday()
