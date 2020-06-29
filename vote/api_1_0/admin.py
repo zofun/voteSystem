@@ -32,6 +32,8 @@ def change_competitor_state():
     competitor['state'] = new_state
     try:
         result = db.competitors.update({"cid": cid}, {"$set": {"state": new_state}})
+        if result.matched_count == 0:
+            return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     except Exception as e:
         current_app.debug(e)
         return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
@@ -39,7 +41,6 @@ def change_competitor_state():
     if COMPETITOR_STATE_JOIN == int(new_state):
         # 如果更新为参赛状态，那么加入redis排行榜（zset）中
         # 从mongo查询出当天该参赛者的票数，并根据规则计算score
-
         vote_info = db.competitor_vote_info.find_one({"cid": cid, "day_of_week": day_of_week})
         timestamp = int(vote_info["date"])
         score = vote_info['vote_num'] * 100000 + (100000 - timestamp % 100000)

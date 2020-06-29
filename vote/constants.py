@@ -40,3 +40,6 @@ COMPETITOR_STATE_OUT = 0
 N = 10
 # 用户每天最多给一个用户的最大票数
 M = 3
+
+# 分数中timestamp的位数
+
