@@ -11,9 +11,7 @@ from flask_jwt_extended import (
 from vote import redis_conn, db, REDIS_RANKING_LIST_KEY
 from vote.api_1_0 import api
 from vote.constants import *
-import threading
-
-lock = threading.Lock()
+from vote.dao import rank_list_dao
 
 
 @api.route('/login', methods=['POST'])
@@ -67,23 +65,22 @@ def apply():
     day_of_week = datetime.now().isoweekday()
     if not name or not nickname or not tel:
         return jsonify({'code': PARAMETER_ERROR, 'msg': '请求参数错误'}), 200
-    # 使用上下文管理器来加锁，这段临界代码执行完毕后会自动释放锁
-    with lock:
-        # 利用参赛者总数来生成一个6位的id
-        c = db.competitors.find().count()
-        cid = str(c + 1).zfill(6)
-        i_data = dict(cid=cid, name=name, nickname=nickname, tel=tel, state=COMPETITOR_STATE_JOIN)
-        try:
-            insert_res = db.competitors.insert_one(i_data)
-            if insert_res is None:
-                return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
-        except pymongo.errors.DuplicateKeyError:
-            return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '电话号重复'}), 200
-        except Exception as e:
-            current_app.logger.warning(e)
+
+    query = dict(system_id=1)
+    u_data = {"$inc": dict(cid=1)}
+    c = db.id.find_and_modify(query, u_data, upsert=True, new=True)
+    cid = str(int(c['cid'])).zfill(6)
+    i_data = dict(cid=cid, name=name, nickname=nickname, tel=tel, state=COMPETITOR_STATE_JOIN)
+    try:
+        insert_res = db.competitors.insert_one(i_data)
+        if insert_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
-        # 将新报名的参赛者cid加入到排行榜
-        redis_conn.zadd(REDIS_RANKING_LIST_KEY + str(day_of_week), {cid: 0})
-        current_app.logger.info("apply:" + str(i_data))
-        pass
+    except pymongo.errors.DuplicateKeyError:
+        return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '电话号重复'}), 200
+    except Exception as e:
+        current_app.logger.warning(e)
+        return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
+    # 将新报名的参赛者cid加入到排行榜
+    rank_list_dao.update_rank_list(day_of_week, cid, 0)
+    current_app.logger.info("apply:" + str(i_data))
     return jsonify({'code': SUCCESS, 'msg': '报名成功', 'cid': cid}), 200

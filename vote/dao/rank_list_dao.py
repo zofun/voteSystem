@@ -46,3 +46,7 @@ def get_vote_num(day_of_week, cid):
         return 0
     else:
         return zset_score_calculate.get_vote_num(score)
+
+
+
+
