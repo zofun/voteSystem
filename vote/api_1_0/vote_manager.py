@@ -28,7 +28,7 @@ def vote(cid):
     if int(user['vote']) == 0:
         return jsonify({'code': SUCCESS, 'msg': '今日选票已用完'}), 200
     # 如果redis中还没有缓存该参赛者选票信息，需要首先将数据加载到redis中
-    # todo 调用榜单的时候，需要判断榜单是否已经加载
+    # todo 调用榜单的时候，需要判断榜单是否已经加载,检查其他地方有没有判断
     flag = redis_conn.exists(identity + REDIS_SPLIT + cid)
     if flag != 1:
         # 加载选手的选票信息

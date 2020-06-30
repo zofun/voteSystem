@@ -44,12 +44,14 @@ def register():
         return jsonify({'code': PARAMETER_ERROR, 'msg': '数据不完整'}), 200
     user = {"username": username, "password": password, "role": "user", "vote": N}
     try:
-        # todo 利用返回值判断是否插入成功，需要捕获其他异常
+        # todo 利用返回值判断是否插入成功，需要捕获其他异常 ok
         db.users.insert_one(user)
     except pymongo.errors.DuplicateKeyError as e:
         current_app.logger.warning(e)
         # username 键建立了唯一索引，如果username重复，那么插入会失败，会抛出异常
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '账号已被占用'}), 200
+    except Exception as e:
+        return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     # 记录用户注册的日志
     current_app.logger.info("user register:" + str(user))
     return jsonify({'code': SUCCESS, 'msg': '注册成功'}), 200

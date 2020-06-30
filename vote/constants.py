@@ -42,4 +42,4 @@ N = 10
 M = 3
 
 # 分数中timestamp的位数
-
+SCORE_CONST=100000

@@ -55,6 +55,6 @@ if __name__ == '__main__':
         "redis_host": "localhost",
         "redis_port": 6379,
         "user_vote_num": 10,  # 每个用户每天可以投的选票数
-        "day_of_week": 1,  # 需要初始化星期几的榜单
+        "day_of_week": 2,  # 需要初始化星期几的榜单
     }
     reset(config)
