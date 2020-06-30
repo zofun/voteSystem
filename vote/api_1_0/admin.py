@@ -12,6 +12,7 @@ from vote import redis_conn, db
 from vote.api_1_0 import api
 from vote.constants import *
 from vote.utils import zset_score_calculate
+from vote.dao import vote_info_dao, rank_list_dao
 
 
 @api.route('/change_competitor_state', methods=['POST'])
@@ -31,8 +32,8 @@ def change_competitor_state():
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '无效的cid'}), 200
     competitor['state'] = new_state
     try:
-        result = db.competitors.update({"cid": cid}, {"$set": {"state": new_state}})
-        if result.matched_count == 0:
+        update_res = db.competitors.find_and_modify({"cid": cid}, {"$set": {"state": new_state}}, new=True)
+        if update_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     except Exception as e:
         current_app.debug(e)
@@ -43,7 +44,6 @@ def change_competitor_state():
         # 从mongo查询出当天该参赛者的票数，并根据规则计算score
         vote_info = db.competitor_vote_info.find_one({"cid": cid, "day_of_week": day_of_week})
         timestamp = int(vote_info["date"])
-        # todo 抽取常量 使用工具类计算 ok
         score = zset_score_calculate.get_score(vote_info['vote_num'], timestamp)
         redis_conn.zadd(REDIS_RANKING_LIST_KEY + str(day_of_week), {cid: score})
     # 记录日志
@@ -68,15 +68,16 @@ def change_competitor_info():
 
     update = {}
     if tel is not None:
-        update["tel"]=tel
+        update['tel'] = tel
     if nickname is not None:
-        update["nickname"]=nickname
+        update['nickname'] = nickname
     if name is not None:
-        update["name"]=nickname
+        update['name'] = name
     # 将参赛者信息同步到数据库中
     try:
         # todo 通过返回值判断更新是否成功 ok
-        update_result = db.competitors.find_and_modify({"cid": cid}, {"$set":[]})
+        query = dict(cid=cid)
+        update_result = db.competitors.find_and_modify(query, {"$set": update}, new=True)
         if update_result is None:
             return jsonify({'code': ERROR, 'msg': '修改失败'}), 200
     except pymongo.errors.DuplicateKeyError as e:
@@ -87,10 +88,8 @@ def change_competitor_info():
         return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
 
     # 将参赛者信息的更改同步到redis
-    json_str = json.dumps(
-        {'name': update_result.get("name"), 'nickname': update_result.get("nickname"), 'tel': update_result.get("tel"),
-         "cid": update_result.get("cid")},
-        ensure_ascii=False)
+    update_result['_id'] = None
+    json_str = json.dumps(update_result, skipkeys=True, ensure_ascii=False)
     redis_conn.setex(update_result.get("cid"), REDIS_KEY_EXPIRE_COMPETITOR_INFO, json_str)
     # 记录日志
     current_app.logger.info(
@@ -111,17 +110,17 @@ def add_vote_to_competitor():
     # 只有拥有管理员权限的人才能够加票
     if 'admin' != claims:
         return jsonify({'code': NO_PERMISSION, 'msg': '权限不够'}), 200
-    # todo 先更新mongo 通过mongo中更新的结果去计算分数，再去更新redis ok
-    # 首先修改mongo，根据mongo中的返回信息来决定是否更新redis
-    # data直接存时间戳
     timestamp = int(time.time())
     update_result = None
     try:
-        update_result = db.competitor_vote_info.find_and_modify({"cid": cid, "day_of_week": day_of_week},
-                                                                {"$inc": {"vote_num": int(votes)},
-                                                                 "$set": {"date": timestamp}})
-        # 将本次管理员加票的信息存放到votes集合中
-        db.votes.insert({"cid": cid, "username": username, "vote_num": int(votes), "date": timestamp})
+        query = dict(cid=cid, day_of_week=day_of_week)
+        u_data = {"$inc": dict(vote_num=int(votes)), "set": dict(date=timestamp)}
+        update_result = db.competitor_vote_info.find_and_modify(query, u_data, new=True)
+
+        i_data = dict(cid=cid, username=username, vote_num=int(votes), date=timestamp)
+        db.votes.insert(i_data)
+        # 更新缓存
+        vote_info_dao.update_vote_info(username, cid, update_result.get("vote_num"))
         if update_result is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     except Exception as e:
@@ -129,8 +128,8 @@ def add_vote_to_competitor():
     # 计算新的score
     score = zset_score_calculate.get_score(update_result.get("vote_num"),
                                            update_result.get("date"))
-    # 更新redis
-    redis_conn.zadd(REDIS_RANKING_LIST_KEY + str(day_of_week), {cid: score})
+    # 更新zset排行榜
+    rank_list_dao.update_rank_list(day_of_week, cid, score)
 
     # 记录日志
     current_app.logger.info(

@@ -4,6 +4,8 @@ REDIS_RANKING_LIST_KEY = 'rank_list'
 # redis存放参赛者信息的hash表key
 REDIS_COMPETITOR_HASH_KEY = 'competitors'
 REDIS_VOTE_PREFIX = 'vote:'
+# 缓存用户余票的前缀
+REDIS_USER_VOTE_PREFIX='user_vote:'
 
 # redis分割符
 REDIS_SPLIT = ':'
@@ -43,3 +45,5 @@ M = 3
 
 # 分数中timestamp的位数
 SCORE_CONST=100000
+
+

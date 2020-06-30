@@ -12,6 +12,7 @@ from vote.constants import *
 from vote.utils import load_data_util
 from datetime import datetime
 from vote.utils import zset_score_calculate
+from vote.dao import rank_list_dao, vote_info_dao, user_vote_info_dao, competitor_info_dao
 
 
 @api.route('/vote/<cid>')
@@ -22,37 +23,40 @@ def vote(cid):
     if competitor_info is None:
         return jsonify({'code': ILLEGAL_PARAMETER, "msg": '没有该参赛者'}), 200
     identity = get_jwt_identity()
-    # 首先判断该用户是否还有选票
-    # todo 加入缓存中
-    user = db.users.find_one({"username": identity})
-    if int(user['vote']) == 0:
+    query = dict(username=identity, vote={"$gt": 0})
+    u_data = {"$inc": dict(vote=-1)}
+    user = db.users.find_and_modify(query, u_data, new=True)
+    if user is None:
         return jsonify({'code': SUCCESS, 'msg': '今日选票已用完'}), 200
-    # 如果redis中还没有缓存该参赛者选票信息，需要首先将数据加载到redis中
-    # todo 调用榜单的时候，需要判断榜单是否已经加载,检查其他地方有没有判断
-    flag = redis_conn.exists(identity + REDIS_SPLIT + cid)
-    if flag != 1:
-        # 加载选手的选票信息
-        load_data_util.load_vote_info_to_redis(cid)
+
     # 拿到今天该用户给该参数者的投票数量
-    # todo 使用mongo的$inc来实现
-    vote_num = redis_conn.get(identity + REDIS_SPLIT + cid)
+    vote_num = vote_info_dao.get_vote_info(identity, cid)
     # 给该用户的投票还没达到阈值
-    if vote_num is None or int(vote_num) < M:
-        new_score = zset_score_calculate.get_score(day_of_week, cid, 1)
-        # 设置或更新zset
-        redis_conn.zadd(REDIS_RANKING_LIST_KEY + str(day_of_week), {cid: new_score})
-        # 更新redis中的选票信息
-        if vote_num is None:
-            vote_num = 0
-        redis_conn.set(identity + REDIS_SPLIT + cid, int(vote_num) + 1)
+    if int(vote_num) < M:
         # 修改数据库中参赛者的信息
         # data直接存时间戳
         timestamp = int(time.time())
-        db.competitor_vote_info.update({"cid": cid, "day_of_week": day_of_week},
-                                       {"$inc": {"vote_num": 1}, "$set": {"date": timestamp}})
-        db.votes.insert({"cid": cid, "username": identity, "vote_num": 1, "date": timestamp})
-        # 更新用户所拥有的选票
-        db.users.update({"username": identity}, {"$inc": {"vote": -1}})
+        update_result = None
+        try:
+            query = dict(cid=cid, day_of_week=day_of_week)
+            u_data = {"$inc": dict(vote_num=1), "$set": dict(date=timestamp)}
+            update_cvf_res = db.competitor_vote_info.find_and_modify(query, u_data, new=True, upsert=True)
+
+            i_data = dict(cid=cid, username=identity, vote_num=1, date=timestamp)
+            insert_res = db.votes.insert(i_data)
+
+            update_u_res = db.users.find_and_modify({"username": identity}, {"$inc": dict(vote=-1)}, new=True)
+            if update_cvf_res is None or update_u_res is None or insert_res is None:
+                return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
+        except Exception as e:
+            current_app.logger.warning(e)
+            return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
+
+        # 将投票更新到mongo 之后，更新redis
+        new_score = zset_score_calculate.get_score(update_cvf_res.get("vote_num"), update_cvf_res.get("date"))
+        rank_list_dao.update_rank_list(day_of_week, cid, new_score)
+        vote_info_dao.update_vote_info(identity, cid, update_cvf_res.get("vote_num"))
+        user_vote_info_dao.update_user_vote_num(identity, -1)
         # 记录日志
         current_app.logger.info("vote:" + identity + "to" + cid)
         return jsonify({'code': SUCCESS, 'msg': '投票成功'}), 200
@@ -65,40 +69,20 @@ def get_ranking_list():
     limit = request.args.get('limit')
     day_of_week = request.args.get('day_of_week', datetime.now().isoweekday())
     begin = (int(page) - 1) * int(limit)
-    # 首先判断redis中zset是否存在，如果不存在就查询数据库，将数据导入redis的zset中
-    flag = redis_conn.exists(REDIS_RANKING_LIST_KEY + str(day_of_week))
-    if flag != 1:
-        # redis中还不存在zset排行榜则进行导入
-        load_data_util.load_rank_to_redis(day_of_week)
-
-    # todo zrange可以添加参数，让它返回的时候携带 score ok
-    rank_list = redis_conn.zrange(REDIS_RANKING_LIST_KEY + str(day_of_week), start=begin, end=begin + int(limit) - 1,
-                                  desc=True,withscores=True)
+    # 从redis zset中分页获取排行榜
+    rank_list = rank_list_dao.get_rank_list(day_of_week, begin, limit)
     # 返回的json中应该包含参赛者总数
     res_json = {'count': redis_conn.zcard(REDIS_RANKING_LIST_KEY + str(day_of_week))}
     data = []
     # 计算排名
     rank = begin
     for item in rank_list:
-        # 首先尝试从redis中获取用户的详细信息，获取不到再从数据库中查询，然后存入redis
-        competitor_info = redis_conn.get(item[0])
-        if competitor_info is None:
-            # redis中没查到，从数据库中查询
-            competitor = db.competitors.find_one({"cid": item[0]})
-            # 存入redis中
-            competitor_info = json.dumps(
-                {'name': competitor['name'], 'nickname': competitor['nickname']
-                    , 'tel': competitor['tel'], "cid": competitor['cid']}
-                , ensure_ascii=False)
-            redis_conn.setex(competitor['cid'], REDIS_KEY_EXPIRE_COMPETITOR_INFO, competitor_info)
-        dict = json.loads(competitor_info)
+        c_dict = competitor_info_dao.get_competitor_info_by_cid(item[0])
         rank += 1
-        dict['rank'] = rank
-        score = item[1]
+        c_dict['rank'] = rank
         # 从zset score中计算出票数
-        # todo /100000的操作出现较多，可以抽取成工具类 ok
-        dict['vote_num'] = zset_score_calculate.get_vote_num(score)
-        data.append(dict)
+        c_dict['vote_num'] = zset_score_calculate.get_vote_num(item[1])
+        data.append(c_dict)
     res_json['data'] = data
     res_json['code'] = 0
     return json.dumps(res_json, ensure_ascii=False), 200
