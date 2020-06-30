@@ -10,15 +10,16 @@ def get_vote_info(username, cid):
     :param cid:
     :return:
     """
-    flag = redis_conn.exists(username + REDIS_SPLIT + cid)
-    if flag != 1:
-        # 加载选手的选票信息
-        load_data_util.load_vote_info_to_redis(cid)
-    vote_num = redis_conn.get(username + REDIS_SPLIT + cid)
+    key = username + REDIS_SPLIT + cid
+    vote_num = redis_conn.get(key)
     if vote_num is None:
-        return 0
-    else:
-        return vote_num
+        load_data_util.load_vote_info_to_redis(cid)
+        vote_num = redis_conn.get(key)
+        if vote_num is None:
+            return 0
+        else:
+            return int(vote_num)
+    return int(vote_num)
 
 
 def update_vote_info(username, cid, vote_num):

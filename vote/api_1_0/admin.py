@@ -36,7 +36,7 @@ def change_competitor_state():
         if update_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     except Exception as e:
-        current_app.debug(e)
+        current_app.logger.error(e, exc_info=True)
         return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     # 更新缓存
     if COMPETITOR_STATE_JOIN == int(new_state):
@@ -75,16 +75,15 @@ def change_competitor_info():
         update['name'] = name
     # 将参赛者信息同步到数据库中
     try:
-        # todo 通过返回值判断更新是否成功 ok
         query = dict(cid=cid)
         update_result = db.competitors.find_and_modify(query, {"$set": update}, new=True)
         if update_result is None:
             return jsonify({'code': ERROR, 'msg': '修改失败'}), 200
     except pymongo.errors.DuplicateKeyError as e:
-        current_app.logger.warning(e)
+        current_app.logger.error(e, exc_info=True)
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': 'tel重复'}), 200
     except Exception as e:
-        current_app.logger.warning(e)
+        current_app.logger.error(e, exc_info=True)
         return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
 
     # 将参赛者信息的更改同步到redis
@@ -119,12 +118,12 @@ def add_vote_to_competitor():
 
         i_data = dict(cid=cid, username=username, vote_num=int(votes), date=timestamp)
         insert_res = db.votes.insert(i_data)
-        # 更新缓存
-        vote_info_dao.update_vote_info(username, cid, update_result.get("vote_num"))
         if update_result is None or insert_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     except Exception as e:
-        current_app.logger.warning(e)
+        current_app.logger.error(e, exc_info=True)
+    # 更新缓存
+    vote_info_dao.update_vote_info(username, cid, update_result.get("vote_num"))
     # 计算新的score
     score = zset_score_calculate.get_score(update_result.get("vote_num"),
                                            update_result.get("date"))

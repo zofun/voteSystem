@@ -6,6 +6,8 @@ REDIS_COMPETITOR_HASH_KEY = 'competitors'
 REDIS_VOTE_PREFIX = 'vote:'
 # 缓存用户余票的前缀
 REDIS_USER_VOTE_PREFIX='user_vote:'
+# 缓存每个参赛者的浅醉
+REDIS_COMPETITOR_INFO_PREFIX="competitor_info:"
 
 # redis分割符
 REDIS_SPLIT = ':'

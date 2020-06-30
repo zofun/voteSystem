@@ -9,6 +9,7 @@ from vote.api_1_0 import api
 from vote import redis_conn, db
 from vote.constants import *
 from vote.dao import rank_list_dao
+from vote.utils import load_data_util
 
 
 @api.route('/search', methods=['GET'])
@@ -36,8 +37,12 @@ def search():
     competitors = db.competitors.find(query).skip(start).limit(int(limit))
     res_json = {'count': 2, 'code': 0}
     data = []
+    # 确保zset已经被加载
+    flag = redis_conn.exists(REDIS_RANKING_LIST_KEY + str(day_of_week))
+    if flag != 1:
+        # redis中还不存在zset排行榜则进行导入
+        load_data_util.load_rank_to_redis(day_of_week)
     for item in competitors:
-        # 从redis,因为redis zset是从小到大进行排序的，因此这里需要计算一下分数从大到小的排名
         index = redis_conn.zrevrank(REDIS_RANKING_LIST_KEY + str(day_of_week), item['cid'])
         if index is not None:
             rank = index + 1

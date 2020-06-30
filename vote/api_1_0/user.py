@@ -69,16 +69,19 @@ def apply():
     query = dict(system_id=1)
     u_data = {"$inc": dict(cid=1)}
     c = db.id.find_and_modify(query, u_data, upsert=True, new=True)
-    cid = str(int(c['cid'])).zfill(6)
+    if c is None:
+        return jsonify({'code': ERROR, 'msg': '报名失败'})
+    cid = str(int(c['cid']))
     i_data = dict(cid=cid, name=name, nickname=nickname, tel=tel, state=COMPETITOR_STATE_JOIN)
     try:
         insert_res = db.competitors.insert_one(i_data)
         if insert_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
-    except pymongo.errors.DuplicateKeyError:
+    except pymongo.errors.DuplicateKeyError as e:
+        current_app.logger.error(e, exc_info=True)
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '电话号重复'}), 200
     except Exception as e:
-        current_app.logger.warning(e)
+        current_app.logger.error(e, exc_info=True)
         return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     # 将新报名的参赛者cid加入到排行榜
     rank_list_dao.update_rank_list(day_of_week, cid, 0)

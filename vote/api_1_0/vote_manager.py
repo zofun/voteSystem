@@ -49,7 +49,7 @@ def vote(cid):
             if update_cvf_res is None or update_u_res is None or insert_res is None:
                 return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
         except Exception as e:
-            current_app.logger.warning(e)
+            current_app.logger.error(e, exc_info=True)
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
 
         # 将投票更新到mongo 之后，更新redis
@@ -60,6 +60,10 @@ def vote(cid):
         # 记录日志
         current_app.logger.info("vote:" + identity + "to" + cid)
         return jsonify({'code': SUCCESS, 'msg': '投票成功'}), 200
+    # 手动回滚数据库
+    u = db.users.find_and_modify({"username": identity}, {"$inc": {"vote": 1}})
+    if u is None:
+        return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     return jsonify({'code': SUCCESS, 'msg': '给该参赛者的投票已经达到最大了'}), 200
 
 

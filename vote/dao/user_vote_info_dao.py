@@ -9,13 +9,17 @@ def get_user_vote_num(username):
     :param username:
     :return:
     """
-    flag = redis_conn.exists(REDIS_USER_VOTE_PREFIX + username)
-    if flag != 1:
-        # 如果用户的剩余选票信息在redis中没有，那么就进行加载
+
+    key = REDIS_USER_VOTE_PREFIX + username
+    vote_num = redis_conn.get(key)
+    if vote_num is None:
         user = db.users.find_one({"username": username})
+        if user is None:
+            return None
         redis_conn.setex(REDIS_USER_VOTE_PREFIX + username, REDIS_KEY_EXPIRE_VOTE_SET,
                          user["vote"])
-    return int(redis_conn.get(REDIS_USER_VOTE_PREFIX + username))
+        return int(user["vote"])
+    return int(vote_num)
 
 
 def update_user_vote_num(username, vote_num):

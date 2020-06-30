@@ -49,4 +49,3 @@ def get_vote_num(day_of_week, cid):
 
 
 
-
