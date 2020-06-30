@@ -45,8 +45,9 @@ def search():
             rank = -1  # 如果已经退赛，则排名使用-1来表示
         vote_num = rank_list_dao.get_vote_num(day_of_week, cid)
 
+        item['_id'] = None
         item['vote_num'] = vote_num
         item['rank'] = rank
         data.append(item)
     res_json['data'] = data
-    return json.dumps(res_json, ensure_ascii=False), 200
+    return json.dumps(res_json, ensure_ascii=False, skipkeys=True), 200

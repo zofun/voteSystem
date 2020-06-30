@@ -15,10 +15,9 @@ def get_competitor_info_by_cid(cid):
     if flag != 1:
         # 加载参赛者信息到redis中
         comp_info = db.competitors.find_one({"cid": cid})
-        print type(comp_info)
         # 跳过_id
-        comp_info["_id"]=None
-        comp_info_json = json.dumps(comp_info,skipkeys=True,ensure_ascii=False)
+        comp_info["_id"] = None
+        comp_info_json = json.dumps(comp_info, skipkeys=True, ensure_ascii=False)
         redis_conn.setex(cid, REDIS_KEY_EXPIRE_COMPETITOR_INFO, comp_info_json)
         return comp_info
     return json.loads(redis_conn.get(cid))

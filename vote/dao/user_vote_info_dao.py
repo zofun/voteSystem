@@ -24,5 +24,4 @@ def update_user_vote_num(username, vote_num):
     :param vote_num: 当前拥有的选票的数量
     :return:
     """
-    redis_conn.setex(REDIS_USER_VOTE_PREFIX + username, REDIS_KEY_EXPIRE_VOTE_SET,vote_num)
-
+    redis_conn.setex(REDIS_USER_VOTE_PREFIX + username, REDIS_KEY_EXPIRE_VOTE_SET, vote_num)

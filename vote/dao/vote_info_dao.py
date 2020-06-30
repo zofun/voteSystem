@@ -4,7 +4,7 @@ from vote.constants import *
 from vote.utils import load_data_util
 
 
-def get_vote_info(username,cid):
+def get_vote_info(username, cid):
     """查询username给cid的投票情况
     :param username:
     :param cid:
@@ -21,8 +21,8 @@ def get_vote_info(username,cid):
         return vote_num
 
 
-def update_vote_info(username,cid,vote_num):
+def update_vote_info(username, cid, vote_num):
     """更新缓存中的投票信息
     :return:
     """
-    redis_conn.set(str(username) + REDIS_SPLIT + str(cid), int(vote_num) )
+    redis_conn.set(str(username) + REDIS_SPLIT + str(cid), int(vote_num))

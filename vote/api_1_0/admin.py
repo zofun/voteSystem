@@ -114,14 +114,14 @@ def add_vote_to_competitor():
     update_result = None
     try:
         query = dict(cid=cid, day_of_week=day_of_week)
-        u_data = {"$inc": dict(vote_num=int(votes)), "set": dict(date=timestamp)}
-        update_result = db.competitor_vote_info.find_and_modify(query, u_data, new=True)
+        u_data = {"$inc": dict(vote_num=int(votes)), "$set": dict(date=timestamp)}
+        update_result = db.competitor_vote_info.find_and_modify(query, u_data, new=True, upsert=True)
 
         i_data = dict(cid=cid, username=username, vote_num=int(votes), date=timestamp)
-        db.votes.insert(i_data)
+        insert_res = db.votes.insert(i_data)
         # 更新缓存
         vote_info_dao.update_vote_info(username, cid, update_result.get("vote_num"))
-        if update_result is None:
+        if update_result is None or insert_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     except Exception as e:
         current_app.logger.warning(e)

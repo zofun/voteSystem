@@ -1,7 +1,7 @@
 # coding=utf-8
 from vote import redis_conn
 from vote.constants import *
-from vote.utils import load_data_util,zset_score_calculate
+from vote.utils import load_data_util, zset_score_calculate
 
 
 def update_rank_list(day_of_week, member, new_score):
@@ -36,7 +36,7 @@ def get_rank_list(day_of_week, start, limit):
     return rank_list
 
 
-def get_vote_num(day_of_week,cid):
+def get_vote_num(day_of_week, cid):
     flag = redis_conn.exists(REDIS_RANKING_LIST_KEY + str(day_of_week))
     if flag != 1:
         # redis中还不存在zset排行榜则进行导入
