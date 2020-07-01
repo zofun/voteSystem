@@ -30,6 +30,7 @@ def vote(cid):
         return jsonify({'code': SUCCESS, 'msg': '今日选票已用完'}), 200
 
     # 拿到今天该用户给该参数者的投票数量
+    # todo 这里将某个用户在哪天给哪个参赛者投了多少票 抽取为一个表，按上面的方式进行处理
     vote_num = vote_info_dao.get_vote_info(identity, cid)
     # 给该用户的投票还没达到阈值
     if int(vote_num) < M:
@@ -43,12 +44,13 @@ def vote(cid):
             update_cvf_res = db.competitor_vote_info.find_and_modify(query, u_data, new=True, upsert=True)
 
             i_data = dict(cid=cid, username=identity, vote_num=1, date=timestamp)
-            insert_res = db.votes.insert(i_data)
+            db.votes.insert(i_data)
 
-            update_u_res = db.users.find_and_modify({"username": identity}, {"$inc": dict(vote=-1)}, new=True)
-            if update_cvf_res is None or update_u_res is None or insert_res is None:
+            #update_u_res = db.users.find_and_modify({"username": identity}, {"$inc": dict(vote=-1)}, new=True)
+            if update_cvf_res is None :
                 return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
         except Exception as e:
+            # 日志打印，应该携带调用入口等信息
             current_app.logger.error(traceback.format_exc())
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
 
