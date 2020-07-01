@@ -27,7 +27,9 @@ def setup_logging(levle):
     :return:
     """
     # 设置日志记录等级
-    logging.basicConfig(level=levle)
+    logging.basicConfig(level=levle,
+                        format='%(asctime)s  %(filename)s : %(levelname)s  %(message)s',
+                        datefmt='%Y-%m-%d %A %H:%M:%S')
     # 创建日志记录器
     file_log_handler = RotatingFileHandler("logs/log", maxBytes=1024 * 1024 * 100)
     logging.getLogger().addHandler(file_log_handler)

@@ -1,5 +1,6 @@
 # coding=utf-8
 import json
+import traceback
 from datetime import datetime
 
 import pymongo
@@ -47,10 +48,10 @@ def register():
         if insert_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     except pymongo.errors.DuplicateKeyError as e:
-        current_app.logger.warning(e)
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '账号已被占用'}), 200
     except Exception as e:
-        current_app.logger.warning(e)
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     # 记录用户注册的日志
     current_app.logger.info("user register:" + str(i_data))
@@ -78,10 +79,10 @@ def apply():
         if insert_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     except pymongo.errors.DuplicateKeyError as e:
-        current_app.logger.error(e, exc_info=True)
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '电话号重复'}), 200
     except Exception as e:
-        current_app.logger.error(e, exc_info=True)
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     # 将新报名的参赛者cid加入到排行榜
     rank_list_dao.update_rank_list(day_of_week, cid, 0)

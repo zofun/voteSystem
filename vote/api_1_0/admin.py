@@ -1,6 +1,7 @@
 # coding=utf-8
 import json
 import time
+import traceback
 from datetime import datetime
 
 import pymongo
@@ -32,11 +33,12 @@ def change_competitor_state():
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '无效的cid'}), 200
     competitor['state'] = new_state
     try:
+        a=1/0
         update_res = db.competitors.find_and_modify({"cid": cid}, {"$set": {"state": new_state}}, new=True)
         if update_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     except Exception as e:
-        current_app.logger.error(e, exc_info=True)
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     # 更新缓存
     if COMPETITOR_STATE_JOIN == int(new_state):
@@ -80,7 +82,7 @@ def change_competitor_info():
         if update_result is None:
             return jsonify({'code': ERROR, 'msg': '修改失败'}), 200
     except pymongo.errors.DuplicateKeyError as e:
-        current_app.logger.error(e, exc_info=True)
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': 'tel重复'}), 200
     except Exception as e:
         current_app.logger.error(e, exc_info=True)
@@ -121,7 +123,7 @@ def add_vote_to_competitor():
         if update_result is None or insert_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     except Exception as e:
-        current_app.logger.error(e, exc_info=True)
+        current_app.logger.error(traceback.format_exc())
     # 更新缓存
     vote_info_dao.update_vote_info(username, cid, update_result.get("vote_num"))
     # 计算新的score

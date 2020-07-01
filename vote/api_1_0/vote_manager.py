@@ -49,7 +49,7 @@ def vote(cid):
             if update_cvf_res is None or update_u_res is None or insert_res is None:
                 return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
         except Exception as e:
-            current_app.logger.error(e, exc_info=True)
+            current_app.logger.error(traceback.format_exc())
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
 
         # 将投票更新到mongo 之后，更新redis
