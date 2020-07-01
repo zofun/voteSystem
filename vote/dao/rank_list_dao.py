@@ -48,4 +48,15 @@ def get_vote_num(day_of_week, cid):
         return zset_score_calculate.get_vote_num(score)
 
 
+def get_rev_rank(day_of_week,cid):
+    key=REDIS_RANKING_LIST_KEY+str(day_of_week)
+    flag = redis_conn.exists(key)
+    if flag != 1:
+        # redis中还不存在zset排行榜则进行导入
+        load_data_util.load_rank_to_redis(day_of_week)
+    index = redis_conn.zrevrank(key, cid)
+    return index
+
+
+
 

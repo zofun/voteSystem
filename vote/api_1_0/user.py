@@ -66,15 +66,15 @@ def apply():
     day_of_week = datetime.now().isoweekday()
     if not name or not nickname or not tel:
         return jsonify({'code': PARAMETER_ERROR, 'msg': '请求参数错误'}), 200
-
+    # 利用mongo $inc自增来生成全局唯一的cid
     query = dict(system_id=1)
     u_data = {"$inc": dict(cid=1)}
     c = db.id.find_and_modify(query, u_data, upsert=True, new=True)
     if c is None:
         return jsonify({'code': ERROR, 'msg': '报名失败'})
     cid = str(int(c['cid']))
-    i_data = dict(cid=cid, name=name, nickname=nickname, tel=tel, state=COMPETITOR_STATE_JOIN)
     try:
+        i_data = dict(cid=cid, name=name, nickname=nickname, tel=tel, state=COMPETITOR_STATE_JOIN)
         insert_res = db.competitors.insert_one(i_data)
         if insert_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200

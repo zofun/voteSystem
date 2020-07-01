@@ -35,15 +35,12 @@ def search():
     start = (int(page) - 1) * int(limit)
     query = {"$or": w}
     competitors = db.competitors.find(query).skip(start).limit(int(limit))
-    res_json = {'count': 2, 'code': 0}
+    res_json = {'count': competitors.count(), 'code': 0}
     data = []
-    # 确保zset已经被加载
-    flag = redis_conn.exists(REDIS_RANKING_LIST_KEY + str(day_of_week))
-    if flag != 1:
-        # redis中还不存在zset排行榜则进行导入
-        load_data_util.load_rank_to_redis(day_of_week)
+
     for item in competitors:
-        index = redis_conn.zrevrank(REDIS_RANKING_LIST_KEY + str(day_of_week), item['cid'])
+        # 从zset中拿该参赛者的排名
+        index = rank_list_dao.get_rev_rank(day_of_week, item['cid'])
         if index is not None:
             rank = index + 1
         else:

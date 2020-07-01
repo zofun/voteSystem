@@ -60,7 +60,7 @@ def vote(cid):
         # 记录日志
         current_app.logger.info("vote:" + identity + "to" + cid)
         return jsonify({'code': SUCCESS, 'msg': '投票成功'}), 200
-    # 手动回滚数据库
+    # 回滚
     u = db.users.find_and_modify({"username": identity}, {"$inc": {"vote": 1}})
     if u is None:
         return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200

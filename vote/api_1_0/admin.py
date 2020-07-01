@@ -33,7 +33,6 @@ def change_competitor_state():
         return jsonify({'code': ILLEGAL_PARAMETER, 'msg': '无效的cid'}), 200
     competitor['state'] = new_state
     try:
-        a=1/0
         update_res = db.competitors.find_and_modify({"cid": cid}, {"$set": {"state": new_state}}, new=True)
         if update_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
@@ -44,7 +43,8 @@ def change_competitor_state():
     if COMPETITOR_STATE_JOIN == int(new_state):
         # 如果更新为参赛状态，那么加入redis排行榜（zset）中
         # 从mongo查询出当天该参赛者的票数，并根据规则计算score
-        vote_info = db.competitor_vote_info.find_one({"cid": cid, "day_of_week": day_of_week})
+        query=dict(cid=cid,day_of_week=day_of_week)
+        vote_info = db.competitor_vote_info.find_one(query)
         timestamp = int(vote_info["date"])
         score = zset_score_calculate.get_score(vote_info['vote_num'], timestamp)
         redis_conn.zadd(REDIS_RANKING_LIST_KEY + str(day_of_week), {cid: score})
@@ -75,7 +75,6 @@ def change_competitor_info():
         update['nickname'] = nickname
     if name is not None:
         update['name'] = name
-    # 将参赛者信息同步到数据库中
     try:
         query = dict(cid=cid)
         update_result = db.competitors.find_and_modify(query, {"$set": update}, new=True)
