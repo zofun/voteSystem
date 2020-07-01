@@ -90,7 +90,7 @@ def change_competitor_info():
     # 将参赛者信息的更改同步到redis
     update_result['_id'] = None
     json_str = json.dumps(update_result, skipkeys=True, ensure_ascii=False)
-    redis_conn.setex(update_result.get("cid"), REDIS_KEY_EXPIRE_COMPETITOR_INFO, json_str)
+    redis_conn.setex(REDIS_COMPETITOR_INFO_PREFIX+update_result.get("cid"), REDIS_KEY_EXPIRE_COMPETITOR_INFO, json_str)
     # 记录日志
     current_app.logger.info(
         "admin change competitor info: admin username:" + str(get_jwt_identity())

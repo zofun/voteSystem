@@ -18,7 +18,7 @@ from vote.dao import rank_list_dao, vote_info_dao, user_vote_info_dao, competito
 @api.route('/vote/<cid>')
 @jwt_required
 def vote(cid):
-    competitor_info = redis_conn.get(cid)
+    competitor_info = redis_conn.get(REDIS_COMPETITOR_INFO_PREFIX+cid)
     day_of_week = datetime.now().isoweekday()
     if competitor_info is None:
         return jsonify({'code': ILLEGAL_PARAMETER, "msg": '没有该参赛者'}), 200
