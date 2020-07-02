@@ -13,7 +13,7 @@ from vote import redis_conn, db
 from vote.api_1_0 import api
 from vote.constants import *
 from vote.utils import zset_score_calculate
-from vote.dao import vote_info_dao, rank_list_dao
+from vote.dao import  rank_list_dao
 
 
 @api.route('/change_competitor_state', methods=['POST'])

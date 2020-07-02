@@ -11,62 +11,60 @@ from vote.api_1_0 import api
 from vote.constants import *
 from vote.utils import load_data_util
 from datetime import datetime
-from vote.utils import zset_score_calculate
-from vote.dao import rank_list_dao, vote_info_dao, user_vote_info_dao, competitor_info_dao
+from vote.utils import zset_score_calculate, datetime_utils
+from vote.dao import rank_list_dao, user_vote_info_dao, competitor_info_dao
 
 
 @api.route('/vote/<cid>')
 @jwt_required
 def vote(cid):
-    competitor_info = redis_conn.get(REDIS_COMPETITOR_INFO_PREFIX+cid)
+    competitor_info = redis_conn.get(REDIS_COMPETITOR_INFO_PREFIX + cid)
     day_of_week = datetime.now().isoweekday()
     if competitor_info is None:
         return jsonify({'code': ILLEGAL_PARAMETER, "msg": '没有该参赛者'}), 200
     identity = get_jwt_identity()
+
+    # 一个用户每天只有N个选票的逻辑
     query = dict(username=identity, vote={"$gt": 0})
     u_data = {"$inc": dict(vote=-1)}
     user = db.users.find_and_modify(query, u_data, new=True)
     if user is None:
         return jsonify({'code': SUCCESS, 'msg': '今日选票已用完'}), 200
 
-    # 拿到今天该用户给该参数者的投票数量
-    # todo 这里将某个用户在哪天给哪个参赛者投了多少票 抽取为一个表，按上面的方式进行处理
-    vote_num = vote_info_dao.get_vote_info(identity, cid)
-    # 给该用户的投票还没达到阈值
-    if int(vote_num) < M:
-        # 修改数据库中参赛者的信息
-        # data直接存时间戳
-        timestamp = int(time.time())
-        update_result = None
-        try:
-            query = dict(cid=cid, day_of_week=day_of_week)
-            u_data = {"$inc": dict(vote_num=1), "$set": dict(date=timestamp)}
-            update_cvf_res = db.competitor_vote_info.find_and_modify(query, u_data, new=True, upsert=True)
+    # 一个用户每天给一个参赛者的投票不能超过M票的逻辑
+    query = dict(username=identity, cid=cid, date=datetime_utils.get_today(), vote_num={"$lt": M})
+    u_data = {"$inc": dict(vote_num=1)}
+    vote_info = db.user_vote_info.find_and_modify(query, u_data, new=True, upsert=True)
+    if vote_info is None:
+        # 回滚
+        u = db.users.find_and_modify({"username": identity}, {"$inc": {"vote": 1}})
+        return jsonify({'code': SUCCESS, 'msg': '给该参赛者的投票已经达到最大了'}), 200
 
-            i_data = dict(cid=cid, username=identity, vote_num=1, date=timestamp)
-            db.votes.insert(i_data)
+    try:
+        # 更新参数者当天所获选票总数
+        query = dict(cid=cid, day_of_week=day_of_week)
+        u_data = {"$inc": dict(vote_num=1), "$set": dict(date=timestamp)}
+        update_cvf_res = db.competitor_vote_info.find_and_modify(query, u_data, new=True, upsert=True)
 
-            #update_u_res = db.users.find_and_modify({"username": identity}, {"$inc": dict(vote=-1)}, new=True)
-            if update_cvf_res is None :
-                return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
-        except Exception as e:
-            # 日志打印，应该携带调用入口等信息
-            current_app.logger.error(traceback.format_exc())
+        if update_cvf_res is None:
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
 
-        # 将投票更新到mongo 之后，更新redis
-        new_score = zset_score_calculate.get_score(update_cvf_res.get("vote_num"), update_cvf_res.get("date"))
-        rank_list_dao.update_rank_list(day_of_week, cid, new_score)
-        vote_info_dao.update_vote_info(identity, cid, update_cvf_res.get("vote_num"))
-        user_vote_info_dao.update_user_vote_num(identity, -1)
-        # 记录日志
-        current_app.logger.info("vote:" + identity + "to" + cid)
-        return jsonify({'code': SUCCESS, 'msg': '投票成功'}), 200
-    # 回滚
-    u = db.users.find_and_modify({"username": identity}, {"$inc": {"vote": 1}})
-    if u is None:
+        # 更新投票记录表
+        i_data = dict(cid=cid, username=identity, vote_num=1, date=timestamp)
+        db.votes.insert(i_data)
+    except Exception as e:
+        # 日志打印，应该携带调用入口等信息
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
-    return jsonify({'code': SUCCESS, 'msg': '给该参赛者的投票已经达到最大了'}), 200
+
+    # 将投票更新到mongo 之后，更新redis
+    new_score = zset_score_calculate.get_score(update_cvf_res.get("vote_num"), update_cvf_res.get("date"))
+    rank_list_dao.update_rank_list(day_of_week, cid, new_score)
+    vote_info_dao.update_vote_info(identity, cid, update_cvf_res.get("vote_num"))
+    user_vote_info_dao.update_user_vote_num(identity, -1)
+    # 记录日志
+    current_app.logger.info("vote:" + identity + "to" + cid)
+    return jsonify({'code': SUCCESS, 'msg': '投票成功'}), 200
 
 
 @api.route('/get_ranking_list', methods=['GET'])

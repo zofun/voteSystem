@@ -27,17 +27,3 @@ def load_rank_to_redis(day_of_week):
                     score = vote_num * 100000 + (100000 - timestamp % 100000)
                 redis_conn.zadd(REDIS_RANKING_LIST_KEY + str(day_of_week), {c['cid']: score})
 
-
-def load_vote_info_to_redis(cid):
-    """将参赛者所收获的选票信息加载到redis中
-    :param cid:
-    :return:
-    """
-    votes = db.votes.find({"cid": cid})
-    for vote in votes:
-        # 做累加
-        vote_num = redis_conn.get(vote['username'] + REDIS_SPLIT + cid)
-        if vote_num is None:
-            vote_num = 0
-        redis_conn.setex(vote['username'] + REDIS_SPLIT + cid, REDIS_KEY_EXPIRE_VOTE_SET,
-                         int(vote['vote_num']) + int(vote_num))
