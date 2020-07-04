@@ -12,12 +12,14 @@ from flask_jwt_extended import (
 from vote import redis_conn, db
 from vote.api_1_0 import api
 from vote.constants import *
+from vote.dao import rank_list_dao
+from vote.utils import wapper
 from vote.utils import zset_score_calculate
-from vote.dao import  rank_list_dao
 
 
 @api.route('/change_competitor_state', methods=['POST'])
 @jwt_required
+@wapper.logger_wrapper
 def change_competitor_state():
     # 获取当前用户的身份
     claims = get_jwt_claims()
@@ -43,7 +45,7 @@ def change_competitor_state():
     if COMPETITOR_STATE_JOIN == int(new_state):
         # 如果更新为参赛状态，那么加入redis排行榜（zset）中
         # 从mongo查询出当天该参赛者的票数，并根据规则计算score
-        query=dict(cid=cid,day_of_week=day_of_week)
+        query = dict(cid=cid, day_of_week=day_of_week)
         vote_info = db.competitor_vote_info.find_one(query)
         timestamp = int(vote_info["date"])
         score = zset_score_calculate.get_score(vote_info['vote_num'], timestamp)
@@ -56,6 +58,7 @@ def change_competitor_state():
 
 @api.route('/change_competitor_info', methods=['POST'])
 @jwt_required
+@wapper.logger_wrapper
 def change_competitor_info():
     # 获取当前用户的身份
     claims = get_jwt_claims()
@@ -90,7 +93,8 @@ def change_competitor_info():
     # 将参赛者信息的更改同步到redis
     update_result['_id'] = None
     json_str = json.dumps(update_result, skipkeys=True, ensure_ascii=False)
-    redis_conn.setex(REDIS_COMPETITOR_INFO_PREFIX+update_result.get("cid"), REDIS_KEY_EXPIRE_COMPETITOR_INFO, json_str)
+    redis_conn.setex(REDIS_COMPETITOR_INFO_PREFIX + update_result.get("cid"), REDIS_KEY_EXPIRE_COMPETITOR_INFO,
+                     json_str)
     # 记录日志
     current_app.logger.info(
         "admin change competitor info: admin username:" + str(get_jwt_identity())
@@ -100,6 +104,7 @@ def change_competitor_info():
 
 @api.route('/add_vote', methods=['POST'])
 @jwt_required
+@wapper.logger_wrapper
 def add_vote_to_competitor():
     cid = request.json.get('cid', None)
     votes = request.json.get('votes', None)
@@ -123,8 +128,6 @@ def add_vote_to_competitor():
             return jsonify({'code': ERROR, 'msg': '更新数据库失败'}), 200
     except Exception as e:
         current_app.logger.error(traceback.format_exc())
-    # 更新缓存
-    vote_info_dao.update_vote_info(username, cid, update_result.get("vote_num"))
     # 计算新的score
     score = zset_score_calculate.get_score(update_result.get("vote_num"),
                                            update_result.get("date"))

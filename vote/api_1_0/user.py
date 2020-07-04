@@ -1,5 +1,4 @@
 # coding=utf-8
-import json
 import traceback
 from datetime import datetime
 
@@ -9,17 +8,20 @@ from flask_jwt_extended import (
     create_access_token
 )
 
-from vote import redis_conn, db, REDIS_RANKING_LIST_KEY
+from vote import db
 from vote.api_1_0 import api
 from vote.constants import *
 from vote.dao import rank_list_dao
+from vote.utils import wapper
 
 
 @api.route('/login', methods=['POST'])
+@wapper.logger_wrapper
 def login():
     current_app.logger.info("user login" + str(request.json))
     username = request.json.get('username', None)
     password = request.json.get('password', None)
+    a = 1 / 0
     if not username or not password:
         return jsonify({'code': PARAMETER_ERROR, 'msg': '数据不完整'}), 200
     # 从数据库中查询，验证用户名密码的正确性
@@ -36,6 +38,7 @@ def login():
 
 
 @api.route('register', methods=['POST'])
+@wapper.logger_wrapper
 def register():
     username = request.json.get('username', None)
     password = request.json.get('password', None)
@@ -59,6 +62,7 @@ def register():
 
 
 @api.route('/apply', methods=['POST'])
+@wapper.logger_wrapper
 def apply():
     name = request.json.get('name', None)
     nickname = request.json.get('nickname', None)

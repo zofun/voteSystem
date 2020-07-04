@@ -11,7 +11,6 @@ def get_score(vote_num, timestamp):
     :param timestamp: 加票时的时间戳
     :return:
     """
-    # todo 先去更新，更新后拿到返回值，从数据行中拿cid，vote_num,date然后去拼接score ok
     # 第5位是时间戳，高位是票数
     return int(vote_num) * SCORE_CONST + (SCORE_CONST - int(timestamp) % SCORE_CONST)
 

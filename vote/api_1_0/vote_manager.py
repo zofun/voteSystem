@@ -1,6 +1,8 @@
 # coding=utf-8
 import json
 import time
+import traceback
+from datetime import datetime
 
 from flask import jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -9,14 +11,14 @@ from vote import db
 from vote import redis_conn
 from vote.api_1_0 import api
 from vote.constants import *
-from vote.utils import load_data_util
-from datetime import datetime
-from vote.utils import zset_score_calculate, datetime_utils
 from vote.dao import rank_list_dao, user_vote_info_dao, competitor_info_dao
+from vote.utils import wapper
+from vote.utils import zset_score_calculate, datetime_utils
 
 
 @api.route('/vote/<cid>')
 @jwt_required
+@wapper.logger_wrapper
 def vote(cid):
     competitor_info = redis_conn.get(REDIS_COMPETITOR_INFO_PREFIX + cid)
     day_of_week = datetime.now().isoweekday()
@@ -41,6 +43,7 @@ def vote(cid):
         return jsonify({'code': SUCCESS, 'msg': '给该参赛者的投票已经达到最大了'}), 200
 
     try:
+        timestamp = int(time.time())
         # 更新参数者当天所获选票总数
         query = dict(cid=cid, day_of_week=day_of_week)
         u_data = {"$inc": dict(vote_num=1), "$set": dict(date=timestamp)}
@@ -60,7 +63,6 @@ def vote(cid):
     # 将投票更新到mongo 之后，更新redis
     new_score = zset_score_calculate.get_score(update_cvf_res.get("vote_num"), update_cvf_res.get("date"))
     rank_list_dao.update_rank_list(day_of_week, cid, new_score)
-    vote_info_dao.update_vote_info(identity, cid, update_cvf_res.get("vote_num"))
     user_vote_info_dao.update_user_vote_num(identity, -1)
     # 记录日志
     current_app.logger.info("vote:" + identity + "to" + cid)
@@ -68,6 +70,7 @@ def vote(cid):
 
 
 @api.route('/get_ranking_list', methods=['GET'])
+@wapper.logger_wrapper
 def get_ranking_list():
     page = request.args.get('page')
     limit = request.args.get('limit')

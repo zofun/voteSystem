@@ -5,14 +5,14 @@ from datetime import datetime
 
 from flask import request
 
+from vote import db
 from vote.api_1_0 import api
-from vote import redis_conn, db
-from vote.constants import *
 from vote.dao import rank_list_dao
-from vote.utils import load_data_util
+from vote.utils import wapper
 
 
 @api.route('/search', methods=['GET'])
+@wapper.logger_wrapper
 def search():
     cid = request.args.get('cid', None)
     nickname = request.args.get('nickname', None)
